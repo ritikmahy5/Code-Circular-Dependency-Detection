@@ -1,0 +1,41 @@
+pattern_id: type_checking_guard
+title: Use TYPE_CHECKING for Type-Only Imports
+anti_pattern: circular_dependency
+refactoring_strategy: type_checking_guard
+complexity: low
+framework: generic
+
+problem_description: |
+  Import is only needed for type hints, not runtime behavior.
+
+symptoms:
+  - Import used only in type annotations
+  - No runtime dependency on the module
+
+solution_description: |
+  Use typing.TYPE_CHECKING to guard the import.
+
+before_code: |
+  # a.py
+  from b import SomeClass  # Circular!
+  def process(obj: SomeClass) -> None:
+      pass
+
+after_code: |
+  # a.py
+  from typing import TYPE_CHECKING
+  if TYPE_CHECKING:
+      from b import SomeClass
+  def process(obj: "SomeClass") -> None:
+      pass
+
+step_by_step:
+  - Add TYPE_CHECKING import
+  - Wrap type-only imports in if TYPE_CHECKING block
+  - Use string annotations for forward references
+
+keywords:
+  - TYPE_CHECKING
+  - type hints
+  - forward reference
+  - annotations

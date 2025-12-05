@@ -1,0 +1,40 @@
+pattern_id: lazy_import
+title: Use Lazy Import to Break Cycle
+anti_pattern: circular_dependency
+refactoring_strategy: lazy_import
+complexity: low
+framework: generic
+
+problem_description: |
+  A module needs another module only inside specific functions,
+  not at module load time.
+
+symptoms:
+  - Import only used in one function
+  - Import could be deferred
+
+solution_description: |
+  Move the import inside the function that needs it.
+
+before_code: |
+  # a.py
+  from b import helper  # Circular!
+  def main():
+      return helper()
+
+after_code: |
+  # a.py
+  def main():
+      from b import helper  # Local import
+      return helper()
+
+step_by_step:
+  - Identify which functions use the import
+  - Move import inside those functions
+  - Test that behavior is unchanged
+
+keywords:
+  - lazy import
+  - local import
+  - deferred import
+  - function-level import

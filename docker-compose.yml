@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cdd-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  cdd:
+    build: .
+    container_name: cdd-app
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - ENVIRONMENT=local
+    volumes:
+      - ./project_to_analyze:/app/project_to_analyze
+      - ./output:/app/output
+    stdin_open: true
+    tty: true
+
+volumes:
+  ollama_data:

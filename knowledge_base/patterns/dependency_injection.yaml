@@ -1,0 +1,45 @@
+pattern_id: dependency_injection
+title: Use Dependency Injection to Decouple Modules
+anti_pattern: tight_coupling
+refactoring_strategy: dependency_injection
+complexity: medium
+framework: generic
+
+problem_description: |
+  Classes create their own dependencies internally rather than
+  receiving them from outside, creating hard-coded coupling.
+
+symptoms:
+  - Classes instantiate dependencies in __init__
+  - Hard to test without mocking internals
+  - Changing one class requires changing others
+
+solution_description: |
+  Pass dependencies as constructor parameters instead of
+  creating them internally. Use a composition root to wire things up.
+
+before_code: |
+  class UserService:
+      def __init__(self):
+          self.db = Database()  # Hard-coded!
+          self.cache = Redis()  # Hard-coded!
+
+after_code: |
+  class UserService:
+      def __init__(self, db: DatabaseProtocol, cache: CacheProtocol):
+          self.db = db      # Injected
+          self.cache = cache  # Injected
+
+step_by_step:
+  - Identify hard-coded dependencies in constructors
+  - Create protocols/interfaces for each dependency
+  - Change constructors to accept dependencies as parameters
+  - Create a composition root that wires everything together
+  - Update tests to inject mock dependencies
+
+keywords:
+  - dependency injection
+  - inversion of control
+  - constructor injection
+  - decoupling
+  - testability

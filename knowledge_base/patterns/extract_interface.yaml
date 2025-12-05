@@ -1,0 +1,56 @@
+pattern_id: extract_interface
+title: Extract Interface to Break Bidirectional Dependency
+anti_pattern: bidirectional_association
+refactoring_strategy: extract_interface
+complexity: medium
+framework: generic
+
+problem_description: |
+  Two modules directly import each other because they need to reference
+  each other's types or call each other's methods.
+
+symptoms:
+  - ImportError depending on import order
+  - Cannot import one module without the other
+  - Circular import detected by static analysis
+
+solution_description: |
+  Extract the shared contract into a third module that both can import.
+
+before_code: |
+  # user_service.py
+  from order_service import OrderService
+  class UserService:
+      def __init__(self):
+          self.orders = OrderService()
+
+  # order_service.py
+  from user_service import UserService
+  class OrderService:
+      def __init__(self):
+          self.users = UserService()
+
+after_code: |
+  # interfaces.py
+  from typing import Protocol
+  class UserServiceProtocol(Protocol):
+      def get_user(self, id: int): ...
+
+  # user_service.py
+  from interfaces import OrderServiceProtocol
+  class UserService:
+      def __init__(self, orders: OrderServiceProtocol):
+          self.orders = orders
+
+step_by_step:
+  - Identify shared types/interfaces
+  - Create interfaces.py with Protocol classes
+  - Update imports to use interfaces
+  - Use dependency injection
+
+keywords:
+  - circular import
+  - bidirectional
+  - interface
+  - protocol
+  - dependency injection
