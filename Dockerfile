@@ -33,9 +33,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY src/ ./src/
 COPY knowledge_base/ ./knowledge_base/
-COPY lib/ ./lib/
 COPY persistent_db/ ./persistent_db/
 COPY setup.py .
+
+# Note: lib/ directory not needed - visualization uses CDN links
 
 # Install the package in development mode
 RUN pip install -e .
