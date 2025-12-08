@@ -19,16 +19,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 try:
     from src.parser.ast_parser import ImportExtractor
     from src.parser.resolver import ModuleResolver
-    from src.parser.chunker import StructureAwareChunker
+    from src.parser.chunker import StructureAwareChunker, CodeChunk
     from src.graph.builder import DependencyGraphBuilder
     from src.graph.analyzer import CycleAnalyzer, CycleInfo, SeverityLevel
     from src.scoring.severity import SeverityScorer
     from src.visualization.graph_viz import DependencyVisualizer
-    # These might still need checking
-    # from src.explainer.generator import ExplanationGenerator
-    # from src.llm.factory import LLMFactory
-    # from src.knowledge.loader import PatternLoader
-    # from src.rag.dual_kb import DualKnowledgeBase
+    from src.explainer.generator import CycleExplainer
+    from src.llm.factory import get_llm
+    from src.knowledge.loader import PatternLoader
+    from src.rag.dual_kb import DualKnowledgeRAG, RAGContext
+    from src.chat import CodebaseChat
+    from src.fixer import AutoFixer, FixStrategy
 except ImportError as e:
     st.error(f"⚠️ Import error: {e}")
     st.info("Make sure you're running from the project root: `streamlit run src/web/app.py`")
@@ -181,6 +182,9 @@ def analyze_directory(project_path: Path, progress_bar=None):
     if not progress_bar:
         progress_bar = st.progress(0)
     
+    # Store the project path for chat initialization
+    st.session_state.project_path = project_path
+    
     try:
         # Step 1: Build dependency graph
         progress_bar.progress(20, text="Building dependency graph...")
@@ -236,6 +240,19 @@ def analyze_directory(project_path: Path, progress_bar=None):
         
         # Sort by severity
         scored_cycles.sort(key=lambda x: -x['severity'])
+        
+        # Step 4: Generate explanations (if enabled and modules exist)
+        # Comment out for now since we don't have these modules yet
+        # if st.session_state.get('enable_llm', True):
+        #     progress_bar.progress(85, text="Generating LLM explanations...")
+        #     try:
+        #         generator = ExplanationGenerator(llm_config={})
+        #         for cycle_data in scored_cycles[:5]:
+        #             explanation = generator.generate(cycle=cycle_data['modules'])
+        #             cycle_data['explanation'] = explanation.get('explanation', '')
+        #             cycle_data['suggestions'] = explanation.get('suggestions', [])
+        #     except Exception as e:
+        #         st.warning(f"Could not generate LLM explanations: {e}")
         
         # Step 5: Store results
         progress_bar.progress(100, text="Analysis complete!")
@@ -355,8 +372,58 @@ def analyze_uploaded_file(uploaded_file):
     finally:
         progress.empty()
 
+# Define helper function before it's used
+def process_chat_message(user_input: str):
+    """Process a chat message and update the conversation."""
+    
+    # Add user message to history
+    st.session_state.chat_history.append({
+        'role': 'user',
+        'content': user_input
+    })
+    
+    # Get response from chat system
+    with st.spinner("Thinking..."):
+        try:
+            # Get response from CodebaseChat
+            response = st.session_state.chat_instance.ask_sync(user_input)
+            
+            # Add assistant message to history
+            assistant_message = {
+                'role': 'assistant',
+                'content': response
+            }
+            
+            # Check if response contains code blocks
+            if "```python" in response:
+                # Extract code blocks
+                import re
+                code_blocks = re.findall(r'```python\n(.*?)\n```', response, re.DOTALL)
+                if code_blocks:
+                    assistant_message['code'] = code_blocks[0]
+            
+            st.session_state.chat_history.append(assistant_message)
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Error getting response: {e}")
+            st.info("Make sure Ollama is running: `ollama serve`")
+            
+            # Add error message to chat
+            st.session_state.chat_history.append({
+                'role': 'assistant',
+                'content': f"I encountered an error: {str(e)}. Please make sure Ollama is running with `ollama serve` command."
+            })
+            st.rerun()
+
 # Main content tabs
-tab1, tab2, tab3, tab4 = st.tabs(["📥 Input", "🔍 Analysis", "📊 Visualization", "🔧 Fix Suggestions"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📥 Input", 
+    "🔍 Analysis", 
+    "📊 Visualization", 
+    "🔧 Fix Suggestions",
+    "💬 AI Assistant"
+])
 
 # Tab 1: Input
 with tab1:
@@ -575,6 +642,19 @@ def analyze_directory(project_path: Path, progress_bar=None):
         
         # Sort by severity
         scored_cycles.sort(key=lambda x: -x['severity'])
+        
+        # Step 4: Generate explanations (if enabled and modules exist)
+        # Comment out for now since we don't have these modules yet
+        # if st.session_state.get('enable_llm', True):
+        #     progress_bar.progress(85, text="Generating LLM explanations...")
+        #     try:
+        #         generator = ExplanationGenerator(llm_config={})
+        #         for cycle_data in scored_cycles[:5]:
+        #             explanation = generator.generate(cycle=cycle_data['modules'])
+        #             cycle_data['explanation'] = explanation.get('explanation', '')
+        #             cycle_data['suggestions'] = explanation.get('suggestions', [])
+        #     except Exception as e:
+        #         st.warning(f"Could not generate LLM explanations: {e}")
         
         # Step 5: Store results
         progress_bar.progress(100, text="Analysis complete!")
@@ -903,7 +983,7 @@ with tab4:
         cycles = st.session_state.analysis_results['cycles']
         
         cycle_options = [
-            f"Cycle {i+1}: {' → '.join(c['modules'][:3])}... (Severity: {c['severity']}/10)"
+            f"Cycle {i+1}: {' → '.join(c['modules'][:3])}... (Severity: {c['severity']:.1f}/100)"
             for i, c in enumerate(cycles)
         ]
         
@@ -916,88 +996,230 @@ with tab4:
         selected_cycle = cycles[selected_cycle_idx]
         
         st.markdown("### Selected Cycle Details")
-        st.code(" → ".join(selected_cycle['modules']) + " → " + selected_cycle['modules'][0])
+        st.code(" → ".join(selected_cycle['chain']) + " → " + selected_cycle['chain'][0])
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Severity", f"{selected_cycle['severity']:.1f}/100")
+            st.metric("Module Count", selected_cycle['size'])
+        with col2:
+            st.metric("Priority Rank", selected_cycle.get('priority_rank', 'N/A'))
+            st.metric("Estimated Effort", selected_cycle.get('estimated_effort', 'N/A'))
         
         # Fix strategies
         st.markdown("### 🛠️ Available Fix Strategies")
         
-        col1, col2 = st.columns(2)
+        fix_strategy = st.selectbox(
+            "Choose refactoring strategy:",
+            [
+                ("Lazy Import", FixStrategy.LAZY_IMPORT),
+                ("TYPE_CHECKING Guard", FixStrategy.TYPE_CHECKING),
+                ("Extract Interface", FixStrategy.EXTRACT_INTERFACE),
+                ("Merge Modules", FixStrategy.MERGE_MODULES)
+            ],
+            format_func=lambda x: x[0]
+        )
         
-        with col1:
-            st.markdown("""
-            **1. Dependency Injection**
-            - Move dependencies to constructor
-            - Use interfaces instead of concrete classes
-            - Best for: Service classes
-            """)
-            
-            if st.button("Apply Dependency Injection"):
-                st.code("""
-# Before:
-from services import UserService
-
-class OrderService:
-    def process(self):
-        user_service = UserService()
-        user_service.validate()
-
-# After:
-class OrderService:
-    def __init__(self, user_service):
-        self.user_service = user_service
-    
-    def process(self):
-        self.user_service.validate()
-                """, language="python")
-        
-        with col2:
-            st.markdown("""
-            **2. Lazy Import**
-            - Import inside functions
+        strategy_info = {
+            FixStrategy.LAZY_IMPORT: """
+            **Lazy Import Pattern**
+            - Move imports inside functions
             - Defer loading until needed
             - Best for: Optional dependencies
-            """)
-            
-            if st.button("Apply Lazy Import"):
-                st.code("""
-# Before:
-from heavy_module import HeavyClass
-
-def process():
-    return HeavyClass().compute()
-
-# After:
-def process():
-    from heavy_module import HeavyClass
-    return HeavyClass().compute()
-                """, language="python")
+            """,
+            FixStrategy.TYPE_CHECKING: """
+            **TYPE_CHECKING Guard**
+            - Import only for type hints
+            - No runtime dependency
+            - Best for: Type annotations only
+            """,
+            FixStrategy.EXTRACT_INTERFACE: """
+            **Extract Interface**
+            - Create abstract base classes
+            - Use dependency injection
+            - Best for: Service classes
+            """,
+            FixStrategy.MERGE_MODULES: """
+            **Merge Modules**
+            - Combine tightly coupled modules
+            - Simplify structure
+            - Best for: Small, related modules
+            """
+        }
         
-        st.markdown("### 📝 Generate Fix")
+        st.info(strategy_info[fix_strategy[1]])
         
         if st.button("🔧 Generate Automated Fix", type="primary"):
             with st.spinner("Generating fix..."):
-                st.success("Fix generated! (This would call your fixer module)")
+                try:
+                    # Get the original CycleInfo object
+                    if 'raw_cycles' in st.session_state.analysis_results:
+                        raw_cycle = st.session_state.analysis_results['raw_cycles'][selected_cycle_idx]
+                        
+                        # Initialize AutoFixer
+                        fixer = AutoFixer()
+                        
+                        # Generate fixes
+                        fixes = fixer.generate_fix_sync(
+                            cycle=raw_cycle,
+                            project_path=Path(st.session_state.current_project) if st.session_state.current_project else Path("."),
+                            strategy=fix_strategy[1]
+                        )
+                        
+                        if fixes:
+                            st.success(f"Generated {len(fixes)} fix(es)!")
+                            
+                            for i, fix in enumerate(fixes, 1):
+                                with st.expander(f"Fix {i}: {fix.description}"):
+                                    st.markdown(f"**File:** `{fix.file_path}`")
+                                    st.markdown(f"**Strategy:** {fix.strategy.value}")
+                                    st.markdown("**Diff:**")
+                                    
+                                    # Show diff
+                                    diff = fixer._generate_diff(fix)
+                                    st.code(diff, language="diff")
+                                    
+                                    if st.button(f"Apply Fix {i}", key=f"apply_fix_{i}"):
+                                        result = fixer.apply_fixes([fix], dry_run=False)
+                                        if result['applied']:
+                                            st.success(f"Fix applied to {fix.file_path}")
+                                        else:
+                                            st.error("Failed to apply fix")
+                        else:
+                            st.warning("No fixes could be generated for this cycle")
+                            
+                except Exception as e:
+                    st.error(f"Error generating fix: {str(e)}")
+                    st.info("Make sure Ollama is running: `ollama serve`")
+
+# Tab 5: AI Assistant
+with tab5:
+    st.header("💬 AI Assistant for Circular Dependencies")
+    
+    # Initialize chat in session state
+    if 'chat_instance' not in st.session_state:
+        st.session_state.chat_instance = None
+    
+    # Try to initialize chat if we have a project path and analysis results
+    if (st.session_state.chat_instance is None and 
+        'project_path' in st.session_state and 
+        st.session_state.project_path):
+        try:
+            with st.spinner("Initializing AI Assistant..."):
+                st.session_state.chat_instance = CodebaseChat(st.session_state.project_path)
+                st.success("✅ AI Assistant ready!")
+        except Exception as e:
+            st.error(f"Could not initialize chat: {e}")
+            st.info("Make sure Ollama is running: `ollama serve`")
+            st.session_state.chat_instance = None
+    
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    
+    # Check if chat is available
+    if st.session_state.chat_instance is None:
+        st.info("👈 Please analyze a project first to enable the AI Assistant")
+        st.markdown("""
+        ### To enable the AI Assistant:
+        1. Go to the **Input** tab
+        2. Analyze a project (Local Directory or GitHub)
+        3. Come back here after analysis completes
+        4. Make sure Ollama is running (`ollama serve`)
+        """)
+    else:
+        # Two-column layout
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            st.subheader("Chat with AI about your circular dependencies")
+            
+            # Quick action buttons based on detected cycles
+            if st.session_state.analysis_results and st.session_state.analysis_results['total_cycles'] > 0:
+                st.markdown("### 🎯 Quick Questions")
                 
-                # This would actually call your fixer module
-                # from src.fixer import CircularDependencyFixer
-                # fixer = CircularDependencyFixer()
-                # fix = fixer.generate_fix(selected_cycle)
+                quick_questions = []
                 
-                st.code("""
-# Generated fix for module_a.py
-# Move shared functionality to a new module
-
-# New file: common/interfaces.py
-class UserInterface:
-    def validate(self): pass
-
-# Updated module_a.py
-from common.interfaces import UserInterface
-
-class ServiceA:
-    def __init__(self, user: UserInterface):
-        self.user = user
-                """, language="python")
+                if st.session_state.analysis_results['critical_issues'] > 0:
+                    quick_questions.append(
+                        f"How do I fix the {st.session_state.analysis_results['critical_issues']} critical circular dependencies?"
+                    )
+                
+                if 'cycles' in st.session_state.analysis_results and len(st.session_state.analysis_results['cycles']) > 0:
+                    worst_cycle = st.session_state.analysis_results['cycles'][0]
+                    cycle_modules = ' → '.join(worst_cycle['chain'][:3]) + "..."
+                    quick_questions.extend([
+                        f"Explain why the cycle {cycle_modules} is problematic",
+                        f"What's the best refactoring pattern for a {worst_cycle['size']}-module cycle?",
+                        "Should I use dependency injection or lazy imports here?",
+                        "What are the performance impacts of these circular dependencies?"
+                    ])
+                
+                # Display quick question buttons in a grid
+                cols = st.columns(2)
+                for i, question in enumerate(quick_questions[:4]):
+                    with cols[i % 2]:
+                        if st.button(question, key=f"quick_{i}", use_container_width=True):
+                            process_chat_message(question)
+            
+            # Chat messages display
+            st.markdown("### 💭 Conversation")
+            
+            # Display chat history
+            for message in st.session_state.chat_history:
+                with st.chat_message(message['role']):
+                    st.write(message['content'])
+                    if 'code' in message:
+                        st.code(message['code'], language='python')
+            
+            # Chat input
+            user_input = st.chat_input("Ask about circular dependencies, refactoring patterns, or your specific cycles...")
+            
+            if user_input:
+                process_chat_message(user_input)
+        
+        with col2:
+            st.subheader("📊 Context")
+            
+            # Show current analysis context
+            if st.session_state.analysis_results:
+                st.info(f"""
+                **Current Analysis:**
+                - Total Cycles: {st.session_state.analysis_results['total_cycles']}
+                - Critical Issues: {st.session_state.analysis_results['critical_issues']}
+                - Files Analyzed: {st.session_state.analysis_results['files_analyzed']}
+                - Modules Affected: {st.session_state.analysis_results['modules_affected']}
+                """)
+                
+                # Show top cycles
+                if 'cycles' in st.session_state.analysis_results:
+                    st.markdown("**Top Cycles:**")
+                    for i, cycle in enumerate(st.session_state.analysis_results['cycles'][:3], 1):
+                        severity_emoji = "🔴" if cycle['severity'] > 75 else "🟠" if cycle['severity'] > 50 else "🟡"
+                        st.text(f"{severity_emoji} Cycle {i}: {cycle['size']} modules")
+            
+            # Suggested topics
+            st.markdown("### 💡 Topics")
+            topics = [
+                "Dependency injection",
+                "Lazy import strategy",
+                "Interface extraction",
+                "Type checking guards",
+                "Breaking service cycles",
+                "Model-service separation",
+                "Event-driven architecture",
+                "Module merging"
+            ]
+            
+            for topic in topics:
+                if st.button(f"📖 {topic}", key=f"topic_{topic}", use_container_width=True):
+                    process_chat_message(f"Explain {topic} for fixing circular dependencies")
+            
+            # Clear chat button
+            if st.button("🗑️ Clear Chat", use_container_width=True):
+                st.session_state.chat_history = []
+                st.rerun()
+            else:
+                st.info("👈 Please analyze a project first to enable the AI Assistant")
 
 # Footer
 st.divider()
