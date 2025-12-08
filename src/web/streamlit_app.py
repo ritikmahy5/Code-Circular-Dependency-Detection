@@ -94,6 +94,8 @@ if 'viz_graph_hash' not in st.session_state:
     st.session_state.viz_graph_hash = None
 if 'viz_path' not in st.session_state:
     st.session_state.viz_path = None
+if 'github_url' not in st.session_state:
+    st.session_state.github_url = None
 
 # Header
 col1, col2 = st.columns([3, 1])
@@ -502,6 +504,10 @@ with tab1:
             else:
                 repo_url = SAMPLE_REPOS[selected_sample]
                 st.info(f"Selected: {repo_url}")
+            
+            # Store GitHub URL for clickable citations
+            if repo_url:
+                st.session_state.github_url = repo_url.rstrip('.git')
         
         with col2:
             st.markdown("### Options")
@@ -877,8 +883,29 @@ with tab2:
                     # Suggestions
                     if 'suggestions' in cycle and cycle['suggestions']:
                         st.markdown("### 💡 Refactoring Suggestions")
+                        
+                        # Link to pattern sources
+                        patterns_dir = Path(__file__).parent.parent.parent / "knowledge_base" / "patterns"
+                        pattern_files = {
+                            "extract interface": "extract_interface.yaml",
+                            "lazy import": "lazy_import.yaml",
+                            "type checking": "type_checking_guard.yaml",
+                            "dependency injection": "dependency_injection.yaml"
+                        }
+                        
                         for j, suggestion in enumerate(cycle['suggestions'], 1):
                             st.markdown(f"{j}. {suggestion}")
+                            
+                            # Try to link to relevant pattern
+                            suggestion_lower = suggestion.lower()
+                            for pattern_name, pattern_file in pattern_files.items():
+                                if pattern_name in suggestion_lower:
+                                    if st.session_state.github_url:
+                                        pattern_url = f"{st.session_state.github_url}/blob/main/knowledge_base/patterns/{pattern_file}"
+                                        st.markdown(f"   📚 [View {pattern_name.title()} Pattern]({pattern_url})")
+                                    else:
+                                        st.markdown(f"   📚 Pattern source: `knowledge_base/patterns/{pattern_file}`")
+                                    break
                     
                     # Show code context button
                     if st.button(f"View Code Context", key=f"code_{i}"):
@@ -933,7 +960,22 @@ with tab2:
                                     continue  # Skip if already displayed
                                 displayed_files.add(file_resolved)
                                 
-                                st.markdown(f"**File: `{module_path}`**")
+                                # Create clickable link if GitHub URL is available
+                                if st.session_state.github_url:
+                                    # Extract relative path from file_path
+                                    try:
+                                        if 'project_path' in st.session_state and st.session_state.project_path:
+                                            rel_path = file_path.relative_to(st.session_state.project_path)
+                                        else:
+                                            rel_path = file_path.name
+                                        
+                                        github_file_url = f"{st.session_state.github_url}/blob/main/{rel_path}"
+                                        st.markdown(f"**File: [{module_path}]({github_file_url})** 📎")
+                                    except:
+                                        st.markdown(f"**File: `{module_path}`**")
+                                else:
+                                    st.markdown(f"**File: `{module_path}`** (local)")
+                                
                                 try:
                                     with open(file_path, 'r', encoding='utf-8') as f:
                                         code_content = f.read()
@@ -941,8 +983,21 @@ with tab2:
                                     # Show just the imports section (first 20 lines or until first class/function)
                                     lines = code_content.split('\n')
                                     import_section = []
+                                    line_num = 1
                                     for line in lines[:30]:  # Check first 30 lines
+                                        # Add clickable line numbers for GitHub
+                                        if st.session_state.github_url and 'import' in line:
+                                            try:
+                                                if 'project_path' in st.session_state and st.session_state.project_path:
+                                                    rel_path = file_path.relative_to(st.session_state.project_path)
+                                                else:
+                                                    rel_path = file_path.name
+                                                line_url = f"{st.session_state.github_url}/blob/main/{rel_path}#L{line_num}"
+                                                import_section.append(f"# [L{line_num}]({line_url})")
+                                            except:
+                                                pass
                                         import_section.append(line)
+                                        line_num += 1
                                         if line.strip().startswith('class ') or line.strip().startswith('def '):
                                             import_section.append("# ... rest of file ...")
                                             break

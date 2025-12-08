@@ -1,0 +1,129 @@
+[
+  {
+    "pattern_id": "dependency_injection",
+    "title": "Use Dependency Injection to Decouple Modules",
+    "anti_pattern": "tight_coupling",
+    "refactoring_strategy": "dependency_injection",
+    "complexity": "medium",
+    "framework": "generic",
+    "problem_description": "Classes create their own dependencies internally rather than\nreceiving them from outside, creating hard-coded coupling.\n",
+    "symptoms": [
+      "Classes instantiate dependencies in __init__",
+      "Hard to test without mocking internals",
+      "Changing one class requires changing others"
+    ],
+    "solution_description": "Pass dependencies as constructor parameters instead of\ncreating them internally. Use a composition root to wire things up.\n",
+    "before_code": "class UserService:\n    def __init__(self):\n        self.db = Database()  # Hard-coded!\n        self.cache = Redis()  # Hard-coded!\n",
+    "after_code": "class UserService:\n    def __init__(self, db: DatabaseProtocol, cache: CacheProtocol):\n        self.db = db      # Injected\n        self.cache = cache  # Injected\n",
+    "step_by_step": [
+      "Identify hard-coded dependencies in constructors",
+      "Create protocols/interfaces for each dependency",
+      "Change constructors to accept dependencies as parameters",
+      "Create a composition root that wires everything together",
+      "Update tests to inject mock dependencies"
+    ],
+    "related_patterns": [],
+    "common_causes": [],
+    "pitfalls": [],
+    "keywords": [
+      "dependency injection",
+      "inversion of control",
+      "constructor injection",
+      "decoupling",
+      "testability"
+    ]
+  },
+  {
+    "pattern_id": "type_checking_guard",
+    "title": "Use TYPE_CHECKING for Type-Only Imports",
+    "anti_pattern": "circular_dependency",
+    "refactoring_strategy": "type_checking_guard",
+    "complexity": "low",
+    "framework": "generic",
+    "problem_description": "Import is only needed for type hints, not runtime behavior.\n",
+    "symptoms": [
+      "Import used only in type annotations",
+      "No runtime dependency on the module"
+    ],
+    "solution_description": "Use typing.TYPE_CHECKING to guard the import.\n",
+    "before_code": "# a.py\nfrom b import SomeClass  # Circular!\ndef process(obj: SomeClass) -> None:\n    pass\n",
+    "after_code": "# a.py\nfrom typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from b import SomeClass\ndef process(obj: \"SomeClass\") -> None:\n    pass\n",
+    "step_by_step": [
+      "Add TYPE_CHECKING import",
+      "Wrap type-only imports in if TYPE_CHECKING block",
+      "Use string annotations for forward references"
+    ],
+    "related_patterns": [],
+    "common_causes": [],
+    "pitfalls": [],
+    "keywords": [
+      "TYPE_CHECKING",
+      "type hints",
+      "forward reference",
+      "annotations"
+    ]
+  },
+  {
+    "pattern_id": "extract_interface",
+    "title": "Extract Interface to Break Bidirectional Dependency",
+    "anti_pattern": "bidirectional_association",
+    "refactoring_strategy": "extract_interface",
+    "complexity": "medium",
+    "framework": "generic",
+    "problem_description": "Two modules directly import each other because they need to reference\neach other's types or call each other's methods.\n",
+    "symptoms": [
+      "ImportError depending on import order",
+      "Cannot import one module without the other",
+      "Circular import detected by static analysis"
+    ],
+    "solution_description": "Extract the shared contract into a third module that both can import.\n",
+    "before_code": "# user_service.py\nfrom order_service import OrderService\nclass UserService:\n    def __init__(self):\n        self.orders = OrderService()\n\n# order_service.py\nfrom user_service import UserService\nclass OrderService:\n    def __init__(self):\n        self.users = UserService()\n",
+    "after_code": "# interfaces.py\nfrom typing import Protocol\nclass UserServiceProtocol(Protocol):\n    def get_user(self, id: int): ...\n\n# user_service.py\nfrom interfaces import OrderServiceProtocol\nclass UserService:\n    def __init__(self, orders: OrderServiceProtocol):\n        self.orders = orders\n",
+    "step_by_step": [
+      "Identify shared types/interfaces",
+      "Create interfaces.py with Protocol classes",
+      "Update imports to use interfaces",
+      "Use dependency injection"
+    ],
+    "related_patterns": [],
+    "common_causes": [],
+    "pitfalls": [],
+    "keywords": [
+      "circular import",
+      "bidirectional",
+      "interface",
+      "protocol",
+      "dependency injection"
+    ]
+  },
+  {
+    "pattern_id": "lazy_import",
+    "title": "Use Lazy Import to Break Cycle",
+    "anti_pattern": "circular_dependency",
+    "refactoring_strategy": "lazy_import",
+    "complexity": "low",
+    "framework": "generic",
+    "problem_description": "A module needs another module only inside specific functions,\nnot at module load time.\n",
+    "symptoms": [
+      "Import only used in one function",
+      "Import could be deferred"
+    ],
+    "solution_description": "Move the import inside the function that needs it.\n",
+    "before_code": "# a.py\nfrom b import helper  # Circular!\ndef main():\n    return helper()\n",
+    "after_code": "# a.py\ndef main():\n    from b import helper  # Local import\n    return helper()\n",
+    "step_by_step": [
+      "Identify which functions use the import",
+      "Move import inside those functions",
+      "Test that behavior is unchanged"
+    ],
+    "related_patterns": [],
+    "common_causes": [],
+    "pitfalls": [],
+    "keywords": [
+      "lazy import",
+      "local import",
+      "deferred import",
+      "function-level import"
+    ]
+  }
+]
