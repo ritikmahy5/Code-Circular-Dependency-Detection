@@ -10,8 +10,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create symlinks for python and pip
-RUN ln -s /usr/bin/python3.11 /usr/bin/python && \
+# Create symlinks for python and pip (remove existing if they exist)
+RUN rm -f /usr/bin/python /usr/bin/pip && \
+    ln -s /usr/bin/python3.11 /usr/bin/python && \
     ln -s /usr/bin/pip3 /usr/bin/pip
 
 WORKDIR /app
