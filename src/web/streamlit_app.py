@@ -776,7 +776,7 @@ with tab2:
                     # Metrics row
                     col1, col2, col3, col4 = st.columns(4)
                     with col1:
-                        st.metric("Severity", f"{severity}/10")
+                        st.metric("Severity", f"{severity}/100")
                     with col2:
                         st.metric("Modules", cycle['size'])
                     with col3:
