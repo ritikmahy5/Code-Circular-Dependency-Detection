@@ -53,7 +53,7 @@ class DependencyVisualizer:
         """Generate interactive HTML visualization."""
         from pyvis.network import Network
         
-        # Create network
+        # Create network with better settings
         net = Network(
             height=height,
             width=width,
@@ -61,45 +61,99 @@ class DependencyVisualizer:
             notebook=notebook,
             bgcolor="#ffffff",
             font_color="#000000",
+            select_menu=True,  # Enable selection menu
+            filter_menu=True,  # Enable filter menu
         )
         
-        # Configure physics
+        # Configure physics for better visualization
         net.set_options("""
         {
             "physics": {
                 "forceAtlas2Based": {
-                    "gravitationalConstant": -50,
-                    "centralGravity": 0.01,
-                    "springLength": 200,
-                    "springConstant": 0.08
+                    "gravitationalConstant": -80,
+                    "centralGravity": 0.015,
+                    "springLength": 250,
+                    "springConstant": 0.12,
+                    "damping": 0.4,
+                    "avoidOverlap": 0.5
                 },
-                "maxVelocity": 50,
+                "maxVelocity": 40,
                 "solver": "forceAtlas2Based",
-                "timestep": 0.35,
-                "stabilization": {"iterations": 150}
+                "timestep": 0.4,
+                "stabilization": {
+                    "enabled": true,
+                    "iterations": 200,
+                    "updateInterval": 25
+                }
             },
             "edges": {
-                "arrows": {"to": {"enabled": true, "scaleFactor": 0.5}},
-                "smooth": {"type": "curvedCW", "roundness": 0.2}
+                "arrows": {
+                    "to": {
+                        "enabled": true,
+                        "scaleFactor": 0.6,
+                        "type": "arrow"
+                    }
+                },
+                "smooth": {
+                    "enabled": true,
+                    "type": "dynamic",
+                    "roundness": 0.5
+                },
+                "width": 2,
+                "selectionWidth": 4,
+                "hoverWidth": 3
+            },
+            "nodes": {
+                "shape": "dot",
+                "font": {
+                    "size": 14,
+                    "face": "Arial"
+                },
+                "borderWidth": 2,
+                "borderWidthSelected": 4,
+                "shadow": {
+                    "enabled": true,
+                    "color": "rgba(0,0,0,0.3)",
+                    "size": 10,
+                    "x": 2,
+                    "y": 2
+                }
             },
             "interaction": {
                 "hover": true,
-                "tooltipDelay": 200
+                "tooltipDelay": 100,
+                "hideEdgesOnDrag": false,
+                "navigationButtons": true,
+                "keyboard": {
+                    "enabled": true
+                },
+                "zoomView": true,
+                "dragView": true
+            },
+            "configure": {
+                "enabled": false
             }
         }
         """)
         
-        # Add nodes
+        # Add nodes with improved styling
         for node in self.graph.nodes():
             color = self._get_node_color(node)
             title = self._get_node_tooltip(node)
+            
+            # Calculate node size based on degree centrality
+            degree = self.graph.degree(node)
+            node_size = 20 + (degree * 2)  # Scale by connections
+            if node in self._cycle_nodes:
+                node_size += 10  # Make cycle nodes larger
             
             net.add_node(
                 node,
                 label=self._get_short_name(node),
                 title=title,
                 color=color,
-                size=25 if node in self._cycle_nodes else 20,
+                size=node_size,
+                borderWidth=3 if node in self._cycle_nodes else 2,
             )
         
         # Add edges

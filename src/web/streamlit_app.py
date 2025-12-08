@@ -1088,7 +1088,8 @@ with tab3:
                     viz_dir.mkdir(exist_ok=True)
                     output_path = viz_dir / f"graph_{id(st.session_state.graph_data)}_{show_all_deps}_{highlight_cycles_only}.html"
                     
-                    visualizer.generate_html(output_path, height="750px", width="100%")
+                    # Generate with better dimensions
+                    visualizer.generate_html(output_path, height="900px", width="100%")
                     
                     # Read and inject legend into HTML
                     with open(output_path, 'r', encoding='utf-8') as f:
@@ -1195,20 +1196,96 @@ with tab3:
         if st.session_state.get('viz_html'):
             st.markdown("---")
             st.markdown("### 🎨 Interactive Dependency Graph")
+            
+            # Display mode selector
+            col1, col2, col3 = st.columns([2, 2, 1])
+            
+            with col1:
+                display_mode = st.radio(
+                    "Display Mode:",
+                    ["Embedded (800px)", "Full Screen", "Custom Height"],
+                    horizontal=True,
+                    key="viz_display_mode"
+                )
+            
+            with col2:
+                if display_mode == "Custom Height":
+                    custom_height = st.slider("Height (pixels)", 600, 2000, 1200, 50)
+                else:
+                    custom_height = 800
+            
+            with col3:
+                # Download button
+                if st.session_state.get('viz_path'):
+                    with open(st.session_state.viz_path, 'rb') as f:
+                        st.download_button(
+                            label="📥 Download",
+                            data=f.read(),
+                            file_name="dependency_graph.html",
+                            mime="text/html",
+                            help="Download as standalone HTML file"
+                        )
+            
             st.info("💡 **Drag nodes to rearrange** | **Hover for details** | **Zoom with mouse wheel** | **Click and drag to pan** | **Legend in bottom-left corner**")
             
-            # Display the HTML visualization
-            components.html(st.session_state.viz_html, height=800, scrolling=True)
-            
-            # Download button
-            if st.session_state.get('viz_path'):
-                with open(st.session_state.viz_path, 'rb') as f:
-                    st.download_button(
-                        label="📥 Download Visualization (HTML)",
-                        data=f.read(),
-                        file_name="dependency_graph.html",
-                        mime="text/html"
-                    )
+            # Display based on mode
+            if display_mode == "Full Screen":
+                # Full screen mode - open in new tab
+                st.markdown("""
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            padding: 20px; 
+                            border-radius: 10px; 
+                            text-align: center;
+                            margin: 20px 0;">
+                    <h3 style="color: white; margin: 0 0 10px 0;">🚀 Full Screen Visualization</h3>
+                    <p style="color: white; margin: 0 0 15px 0;">
+                        Click the button below to open the interactive graph in a new browser tab for the best experience!
+                    </p>
+                """, unsafe_allow_html=True)
+                
+                # Create a temporary file that can be served
+                if st.session_state.get('viz_path'):
+                    # Show a button to open in new tab
+                    st.markdown(f"""
+                    <a href="file://{st.session_state.viz_path}" target="_blank" 
+                       style="background-color: white; 
+                              color: #667eea; 
+                              padding: 12px 24px; 
+                              text-decoration: none; 
+                              border-radius: 5px; 
+                              font-weight: bold;
+                              display: inline-block;
+                              cursor: pointer;">
+                        🌐 Open Full Screen Graph
+                    </a>
+                    """, unsafe_allow_html=True)
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+                # Also show embedded preview
+                st.markdown("**Preview (Embedded):**")
+                components.html(st.session_state.viz_html, height=600, scrolling=False)
+                
+            else:
+                # Embedded mode with custom or default height
+                height_to_use = custom_height if display_mode == "Custom Height" else 800
+                
+                # Display the HTML visualization with better styling
+                components.html(st.session_state.viz_html, height=height_to_use, scrolling=False)
+                
+                # Add tips below
+                st.markdown("""
+                <div style="background: #f0f2f6; padding: 15px; border-radius: 8px; margin-top: 10px;">
+                    <strong>🎯 Pro Tips:</strong>
+                    <ul style="margin: 5px 0; padding-left: 20px;">
+                        <li>Use <strong>Full Screen mode</strong> for the best visualization experience</li>
+                        <li>Download the HTML file to view offline or share with team</li>
+                        <li>Red edges indicate circular dependencies</li>
+                        <li>Node size indicates centrality (importance)</li>
+                        <li>Color indicates severity: 🟢 Low → 🟡 Medium → 🟠 High → 🔴 Critical</li>
+                    </ul>
+                </div>
+                """, unsafe_allow_html=True)
 
 # Tab 4: Fix Suggestions
 with tab4:
