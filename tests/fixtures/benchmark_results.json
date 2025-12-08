@@ -1,0 +1,164 @@
+{
+  "individual_results": {
+    "complex_cycle": {
+      "graph_building": {
+        "mean": 0.001219797134399414,
+        "median": 0.0011336803436279297,
+        "min": 0.000946044921875,
+        "max": 0.0016131401062011719,
+        "nodes": 3,
+        "edges": 3
+      },
+      "cycle_detection": {
+        "mean": 0.00024280548095703124,
+        "median": 9.393692016601562e-05,
+        "min": 8.392333984375e-05,
+        "max": 0.0008339881896972656,
+        "cycles_found": 1,
+        "cycles": [
+          "CycleInfo(cycle_id=1, files=['a.py', 'b.py', 'c.py'], chain=['a.py', 'b.py', 'c.py', 'a.py'], length=3, severity=<SeverityLevel.CRITICAL: 'critical'>, has_type_checking_only=False, has_local_imports=False, coupling_density=0.5, centrality_score=0.5, edge_details=[{'from': 'a.py', 'to': 'b.py', 'line': 1, 'type_checking': False, 'local': False}, {'from': 'b.py', 'to': 'c.py', 'line': 1, 'type_checking': False, 'local': False}, {'from': 'c.py', 'to': 'a.py', 'line': 1, 'type_checking': False, 'local': False}])"
+        ]
+      },
+      "chunking": {
+        "time": 0.00035572052001953125,
+        "files_processed": 3,
+        "chunks_created": 9,
+        "avg_chunks_per_file": 3.0,
+        "chunks": [
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\a.py::imports', chunk_type=<ChunkType.IMPORT_BLOCK: 'import_block'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\a.py', start_line=1, end_line=1, source_code='from b import B', parent_chunk_id=None, children_ids=[], name='imports', docstring=None, signature=None, imports_from=['b'], imported_by=[], context_header='Import statements in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\a.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\a.py::A', chunk_type=<ChunkType.CLASS: 'class'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\a.py', start_line=2, end_line=4, source_code='class A:', parent_chunk_id=None, children_ids=['D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\a.py::A.__init__'], name='A', docstring=None, signature=None, imports_from=['b'], imported_by=[], context_header='Class `A` in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\a.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\a.py::A.__init__', chunk_type=<ChunkType.METHOD: 'method'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\a.py', start_line=3, end_line=4, source_code='    def __init__(self):\\n        self.b = B()', parent_chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\a.py::A', children_ids=[], name='__init__', docstring=None, signature='def __init__(self)', imports_from=['b'], imported_by=[], context_header='In class `A`, method `__init__`')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\b.py::imports', chunk_type=<ChunkType.IMPORT_BLOCK: 'import_block'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\b.py', start_line=1, end_line=1, source_code='from c import C', parent_chunk_id=None, children_ids=[], name='imports', docstring=None, signature=None, imports_from=['c'], imported_by=[], context_header='Import statements in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\b.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\b.py::B', chunk_type=<ChunkType.CLASS: 'class'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\b.py', start_line=2, end_line=4, source_code='class B:', parent_chunk_id=None, children_ids=['D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\b.py::B.__init__'], name='B', docstring=None, signature=None, imports_from=['c'], imported_by=[], context_header='Class `B` in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\b.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\b.py::B.__init__', chunk_type=<ChunkType.METHOD: 'method'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\b.py', start_line=3, end_line=4, source_code='    def __init__(self):\\n        self.c = C()', parent_chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\b.py::B', children_ids=[], name='__init__', docstring=None, signature='def __init__(self)', imports_from=['c'], imported_by=[], context_header='In class `B`, method `__init__`')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\c.py::imports', chunk_type=<ChunkType.IMPORT_BLOCK: 'import_block'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\c.py', start_line=1, end_line=1, source_code='from a import A', parent_chunk_id=None, children_ids=[], name='imports', docstring=None, signature=None, imports_from=['a'], imported_by=[], context_header='Import statements in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\c.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\c.py::C', chunk_type=<ChunkType.CLASS: 'class'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\c.py', start_line=2, end_line=4, source_code='class C:', parent_chunk_id=None, children_ids=['D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\c.py::C.__init__'], name='C', docstring=None, signature=None, imports_from=['a'], imported_by=[], context_header='Class `C` in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\c.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\c.py::C.__init__', chunk_type=<ChunkType.METHOD: 'method'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\c.py', start_line=3, end_line=4, source_code='    def __init__(self):\\n        self.a = A()', parent_chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\complex_cycle\\\\c.py::C', children_ids=[], name='__init__', docstring=None, signature='def __init__(self)', imports_from=['a'], imported_by=[], context_header='In class `C`, method `__init__`')"
+        ]
+      },
+      "rag_retrieval": {
+        "mean": 0.004722881317138672,
+        "median": 0.0045413970947265625,
+        "min": 0.00439906120300293,
+        "max": 0.005320549011230469
+      }
+    },
+    "simple_cycle": {
+      "graph_building": {
+        "mean": 0.0009018898010253907,
+        "median": 0.0008060932159423828,
+        "min": 0.0007550716400146484,
+        "max": 0.0013403892517089844,
+        "nodes": 2,
+        "edges": 2
+      },
+      "cycle_detection": {
+        "mean": 0.00010728836059570312,
+        "median": 8.344650268554688e-05,
+        "min": 7.43865966796875e-05,
+        "max": 0.00019931793212890625,
+        "cycles_found": 1,
+        "cycles": [
+          "CycleInfo(cycle_id=1, files=['module_a.py', 'module_b.py'], chain=['module_a.py', 'module_b.py', 'module_a.py'], length=2, severity=<SeverityLevel.LOW: 'low'>, has_type_checking_only=False, has_local_imports=False, coupling_density=1.0, centrality_score=0.0, edge_details=[{'from': 'module_a.py', 'to': 'module_b.py', 'line': 2, 'type_checking': False, 'local': False}, {'from': 'module_b.py', 'to': 'module_a.py', 'line': 2, 'type_checking': False, 'local': False}])"
+        ]
+      },
+      "chunking": {
+        "time": 0.0002956390380859375,
+        "files_processed": 2,
+        "chunks_created": 7,
+        "avg_chunks_per_file": 3.5,
+        "chunks": [
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_a.py::imports', chunk_type=<ChunkType.IMPORT_BLOCK: 'import_block'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_a.py', start_line=2, end_line=2, source_code='from module_b import process_b', parent_chunk_id=None, children_ids=[], name='imports', docstring=None, signature=None, imports_from=['module_b'], imported_by=[], context_header='Import statements in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_a.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_a.py::top_level_1', chunk_type=<ChunkType.TOP_LEVEL: 'top_level'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_a.py', start_line=1, end_line=1, source_code='\"\"\"Module A - imports from Module B.\"\"\"', parent_chunk_id=None, children_ids=[], name='', docstring=None, signature=None, imports_from=[], imported_by=[], context_header='Top-level code in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_a.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_a.py::process_a', chunk_type=<ChunkType.FUNCTION: 'function'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_a.py', start_line=4, end_line=6, source_code='def process_a(data):\\n    \"\"\"Process data using module B.\"\"\"\\n    return process_b(data) + \"_from_a\"', parent_chunk_id=None, children_ids=[], name='process_a', docstring='Process data using module B.', signature='def process_a(data)', imports_from=['module_b'], imported_by=[], context_header='Function `process_a` in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_a.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py::imports', chunk_type=<ChunkType.IMPORT_BLOCK: 'import_block'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py', start_line=2, end_line=2, source_code='from module_a import process_a', parent_chunk_id=None, children_ids=[], name='imports', docstring=None, signature=None, imports_from=['module_a'], imported_by=[], context_header='Import statements in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py::top_level_1', chunk_type=<ChunkType.TOP_LEVEL: 'top_level'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py', start_line=1, end_line=1, source_code='\"\"\"Module B - imports from Module A (creates cycle).\"\"\"', parent_chunk_id=None, children_ids=[], name='', docstring=None, signature=None, imports_from=[], imported_by=[], context_header='Top-level code in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py::process_b', chunk_type=<ChunkType.FUNCTION: 'function'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py', start_line=4, end_line=6, source_code='def process_b(data):\\n    \"\"\"Process data.\"\"\"\\n    return f\"processed_{data}\"', parent_chunk_id=None, children_ids=[], name='process_b', docstring='Process data.', signature='def process_b(data)', imports_from=['module_a'], imported_by=[], context_header='Function `process_b` in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py::get_combined', chunk_type=<ChunkType.FUNCTION: 'function'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py', start_line=8, end_line=10, source_code='def get_combined():\\n    \"\"\"Get combined result (causes the cycle).\"\"\"\\n    return process_a(\"test\")', parent_chunk_id=None, children_ids=[], name='get_combined', docstring='Get combined result (causes the cycle).', signature='def get_combined()', imports_from=['module_a'], imported_by=[], context_header='Function `get_combined` in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\simple_cycle\\\\module_b.py')"
+        ]
+      },
+      "rag_retrieval": {
+        "mean": 0.004833793640136719,
+        "median": 0.004635810852050781,
+        "min": 0.004319667816162109,
+        "max": 0.00570988655090332
+      }
+    },
+    "type_checking_cycle": {
+      "graph_building": {
+        "mean": 0.0010171890258789062,
+        "median": 0.0009016990661621094,
+        "min": 0.0008544921875,
+        "max": 0.0014941692352294922,
+        "nodes": 2,
+        "edges": 2
+      },
+      "cycle_detection": {
+        "mean": 0.00010042190551757812,
+        "median": 8.0108642578125e-05,
+        "min": 7.2479248046875e-05,
+        "max": 0.0001780986785888672,
+        "cycles_found": 1,
+        "cycles": [
+          "CycleInfo(cycle_id=1, files=['models.py', 'services.py'], chain=['models.py', 'services.py', 'models.py'], length=2, severity=<SeverityLevel.LOW: 'low'>, has_type_checking_only=False, has_local_imports=True, coupling_density=1.0, centrality_score=0.0, edge_details=[{'from': 'models.py', 'to': 'services.py', 'line': 15, 'type_checking': False, 'local': True}, {'from': 'services.py', 'to': 'models.py', 'line': 5, 'type_checking': True, 'local': False}])"
+        ]
+      },
+      "chunking": {
+        "time": 0.0013017654418945312,
+        "files_processed": 2,
+        "chunks_created": 12,
+        "avg_chunks_per_file": 6.0,
+        "chunks": [
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py::imports', chunk_type=<ChunkType.IMPORT_BLOCK: 'import_block'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py', start_line=2, end_line=2, source_code='from typing import TYPE_CHECKING, List', parent_chunk_id=None, children_ids=[], name='imports', docstring=None, signature=None, imports_from=['typing', 'services', 'services'], imported_by=[], context_header='Import statements in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py::top_level_1', chunk_type=<ChunkType.TOP_LEVEL: 'top_level'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py', start_line=1, end_line=1, source_code='\"\"\"Models module with TYPE_CHECKING cycle.\"\"\"', parent_chunk_id=None, children_ids=[], name='', docstring=None, signature=None, imports_from=[], imported_by=[], context_header='Top-level code in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py::top_level_4', chunk_type=<ChunkType.TOP_LEVEL: 'top_level'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py', start_line=4, end_line=5, source_code='if TYPE_CHECKING:\\n    from services import UserService', parent_chunk_id=None, children_ids=[], name='', docstring=None, signature=None, imports_from=[], imported_by=[], context_header='Top-level code in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py::User', chunk_type=<ChunkType.CLASS: 'class'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py', start_line=7, end_line=16, source_code='class User:\\n    \"\"\"User model.\"\"\"', parent_chunk_id=None, children_ids=['D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py::User.__init__', 'D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py::User.get_service'], name='User', docstring='User model.', signature=None, imports_from=['typing', 'services', 'services'], imported_by=[], context_header='Class `User` in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py::User.__init__', chunk_type=<ChunkType.METHOD: 'method'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py', start_line=10, end_line=11, source_code='    def __init__(self, name: str):\\n        self.name = name', parent_chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py::User', children_ids=[], name='__init__', docstring=None, signature='def __init__(self, name: str)', imports_from=['typing', 'services', 'services'], imported_by=[], context_header='In class `User`, method `__init__`')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py::User.get_service', chunk_type=<ChunkType.METHOD: 'method'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py', start_line=13, end_line=16, source_code='    def get_service(self) -> \"UserService\":\\n        \"\"\"Get associated service.\"\"\"\\n        from services import UserService\\n        return UserService(self)', parent_chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\models.py::User', children_ids=[], name='get_service', docstring='Get associated service.', signature=\"def get_service(self) -> 'UserService'\", imports_from=['typing', 'services', 'services'], imported_by=[], context_header='In class `User`, method `get_service`')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py::imports', chunk_type=<ChunkType.IMPORT_BLOCK: 'import_block'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py', start_line=2, end_line=2, source_code='from typing import TYPE_CHECKING', parent_chunk_id=None, children_ids=[], name='imports', docstring=None, signature=None, imports_from=['typing', 'models'], imported_by=[], context_header='Import statements in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py::top_level_1', chunk_type=<ChunkType.TOP_LEVEL: 'top_level'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py', start_line=1, end_line=1, source_code='\"\"\"Services module.\"\"\"', parent_chunk_id=None, children_ids=[], name='', docstring=None, signature=None, imports_from=[], imported_by=[], context_header='Top-level code in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py::top_level_4', chunk_type=<ChunkType.TOP_LEVEL: 'top_level'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py', start_line=4, end_line=5, source_code='if TYPE_CHECKING:\\n    from models import User', parent_chunk_id=None, children_ids=[], name='', docstring=None, signature=None, imports_from=[], imported_by=[], context_header='Top-level code in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py::UserService', chunk_type=<ChunkType.CLASS: 'class'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py', start_line=7, end_line=14, source_code='class UserService:\\n    \"\"\"Service for user operations.\"\"\"', parent_chunk_id=None, children_ids=['D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py::UserService.__init__', 'D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py::UserService.process'], name='UserService', docstring='Service for user operations.', signature=None, imports_from=['typing', 'models'], imported_by=[], context_header='Class `UserService` in D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py::UserService.__init__', chunk_type=<ChunkType.METHOD: 'method'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py', start_line=10, end_line=11, source_code='    def __init__(self, user: \"User\"):\\n        self.user = user', parent_chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py::UserService', children_ids=[], name='__init__', docstring=None, signature=\"def __init__(self, user: 'User')\", imports_from=['typing', 'models'], imported_by=[], context_header='In class `UserService`, method `__init__`')",
+          "CodeChunk(chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py::UserService.process', chunk_type=<ChunkType.METHOD: 'method'>, file_path='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py', start_line=13, end_line=14, source_code='    def process(self) -> str:\\n        return f\"Processing {self.user.name}\"', parent_chunk_id='D:\\\\Masters\\\\Courses\\\\CS6120 NLP\\\\final_project\\\\Code-Circular-Dependency-Detection\\\\tests\\\\fixtures\\\\type_checking_cycle\\\\services.py::UserService', children_ids=[], name='process', docstring=None, signature='def process(self) -> str', imports_from=['typing', 'models'], imported_by=[], context_header='In class `UserService`, method `process`')"
+        ]
+      },
+      "rag_retrieval": {
+        "mean": 0.004527568817138672,
+        "median": 0.004518032073974609,
+        "min": 0.00402522087097168,
+        "max": 0.005097627639770508
+      }
+    }
+  },
+  "aggregated": {
+    "total_files": 7,
+    "total_edges": 7,
+    "total_cycles": 3,
+    "total_chunks": 28
+  },
+  "accuracy": {
+    "percentage": 100.0,
+    "correct": 3,
+    "total": 3,
+    "details": {
+      "simple_cycle": {
+        "expected": 1,
+        "found": 1,
+        "correct": true,
+        "files": "{'module_a.py', 'module_b.py'}"
+      },
+      "complex_cycle": {
+        "expected": 1,
+        "found": 1,
+        "correct": true,
+        "files": "{'b.py', 'c.py', 'a.py'}"
+      },
+      "no_cycle": {
+        "expected": 0,
+        "found": 0,
+        "correct": true
+      }
+    }
+  }
+}

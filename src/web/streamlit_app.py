@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import tempfile
 import shutil
 import os
@@ -87,6 +88,12 @@ if 'current_project' not in st.session_state:
     st.session_state.current_project = None
 if 'graph_data' not in st.session_state:
     st.session_state.graph_data = None
+if 'viz_html' not in st.session_state:
+    st.session_state.viz_html = None
+if 'viz_graph_hash' not in st.session_state:
+    st.session_state.viz_graph_hash = None
+if 'viz_path' not in st.session_state:
+    st.session_state.viz_path = None
 
 # Header
 col1, col2 = st.columns([3, 1])
@@ -168,7 +175,6 @@ with st.sidebar:
 
 # Sample repositories for quick testing
 SAMPLE_REPOS = {
-    "Test Project (Simple)": "https://github.com/yourusername/test-cycles",
     "Django (Complex)": "https://github.com/django/django",
     "FastAPI (Medium)": "https://github.com/tiangolo/fastapi",
     "Flask (Simple)": "https://github.com/pallets/flask",
@@ -184,6 +190,13 @@ def analyze_directory(project_path: Path, progress_bar=None):
     
     # Store the project path for chat initialization
     st.session_state.project_path = project_path
+    
+    # Clear old visualization when starting new analysis
+    st.session_state.viz_html = None
+    st.session_state.viz_graph_hash = None
+    st.session_state.viz_path = None
+    st.session_state.viz_show_all_deps_stored = None
+    st.session_state.viz_highlight_cycles_only_stored = None
     
     try:
         # Step 1: Build dependency graph
@@ -298,28 +311,51 @@ def analyze_github_repo(repo_url: str, branch: str = "main", depth: int = 1):
     progress = st.progress(0, text="Initializing...")
     
     try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            repo_path = Path(tmpdir) / "repo"
-            
-            # Clone repository
-            progress.progress(20, text=f"Cloning repository from {repo_url}...")
-            
-            result = subprocess.run(
-                ["git", "clone", "--depth", str(depth), "--branch", branch, repo_url, str(repo_path)],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-            
-            if result.returncode != 0:
-                st.error(f"Git clone failed: {result.stderr}")
-                return
-            
-            progress.progress(40, text="Repository cloned, starting analysis...")
-            
-            # Analyze
-            st.session_state.current_project = repo_url.split('/')[-1]
-            analyze_directory(repo_path, progress_bar=progress)
+        # Use persistent session directory instead of TemporaryDirectory
+        session_id = st.session_state.get('session_id', id(st.session_state))
+        st.session_state.session_id = session_id
+        
+        # Create persistent directory for this session
+        persistent_dir = Path(tempfile.gettempdir()) / "cdd_sessions" / f"session_{session_id}"
+        persistent_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Use a unique directory name for each clone to avoid conflicts
+        import time
+        repo_name = f"repo_{int(time.time() * 1000)}"  # Use milliseconds for uniqueness
+        repo_path = persistent_dir / repo_name
+        
+        # Clean up old repo directories (keep only the most recent few)
+        repo_dirs = sorted(
+            [d for d in persistent_dir.iterdir() if d.is_dir() and d.name.startswith("repo")],
+            key=lambda x: x.stat().st_mtime,
+            reverse=True
+        )
+        # Keep only the 3 most recent, delete older ones
+        for old_repo in repo_dirs[3:]:
+            try:
+                shutil.rmtree(old_repo, ignore_errors=True)
+            except Exception:
+                pass  # Ignore cleanup errors
+        
+        # Clone repository
+        progress.progress(20, text=f"Cloning repository from {repo_url}...")
+        
+        result = subprocess.run(
+            ["git", "clone", "--depth", str(depth), "--branch", branch, repo_url, str(repo_path)],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        
+        if result.returncode != 0:
+            st.error(f"Git clone failed: {result.stderr}")
+            return
+        
+        progress.progress(40, text="Repository cloned, starting analysis...")
+        
+        # Analyze - this will store project_path in session state
+        st.session_state.current_project = repo_url.split('/')[-1]
+        analyze_directory(repo_path, progress_bar=progress)
             
     except subprocess.TimeoutExpired:
         st.error("⏱️ Clone timeout. Try a smaller repository or increase timeout.")
@@ -333,39 +369,52 @@ def analyze_uploaded_file(uploaded_file):
     progress = st.progress(0, text="Processing upload...")
     
     try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmppath = Path(tmpdir)
+        # Use persistent session directory instead of TemporaryDirectory
+        session_id = st.session_state.get('session_id', id(st.session_state))
+        st.session_state.session_id = session_id
+        
+        # Create persistent directory for this session
+        persistent_dir = Path(tempfile.gettempdir()) / "cdd_sessions" / f"session_{session_id}"
+        persistent_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Clean up old project directories in this session
+        for old_dir in persistent_dir.iterdir():
+            if old_dir.is_dir():
+                shutil.rmtree(old_dir, ignore_errors=True)
+        
+        tmppath = persistent_dir / "upload"
+        tmppath.mkdir(exist_ok=True)
+        
+        if uploaded_file.name.endswith('.zip'):
+            progress.progress(20, text="Extracting archive...")
             
-            if uploaded_file.name.endswith('.zip'):
-                progress.progress(20, text="Extracting archive...")
-                
-                # Save and extract zip
-                zip_path = tmppath / uploaded_file.name
-                with open(zip_path, 'wb') as f:
-                    f.write(uploaded_file.getbuffer())
-                
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall(tmppath / "extracted")
-                
-                project_path = tmppath / "extracted"
-                
-                # Find Python files to determine root
-                py_files = list(project_path.rglob("*.py"))
-                if py_files:
-                    # Find common root
-                    common_parent = Path(os.path.commonpath([str(f.parent) for f in py_files]))
-                    project_path = common_parent
-            else:
-                # Single Python file
-                progress.progress(20, text="Processing Python file...")
-                file_path = tmppath / uploaded_file.name
-                with open(file_path, 'wb') as f:
-                    f.write(uploaded_file.getbuffer())
-                project_path = tmppath
+            # Save and extract zip
+            zip_path = tmppath / uploaded_file.name
+            with open(zip_path, 'wb') as f:
+                f.write(uploaded_file.getbuffer())
             
-            st.session_state.current_project = uploaded_file.name
-            progress.progress(40, text="Starting analysis...")
-            analyze_directory(project_path, progress_bar=progress)
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(tmppath / "extracted")
+            
+            project_path = tmppath / "extracted"
+            
+            # Find Python files to determine root
+            py_files = list(project_path.rglob("*.py"))
+            if py_files:
+                # Find common root
+                common_parent = Path(os.path.commonpath([str(f.parent) for f in py_files]))
+                project_path = common_parent
+        else:
+            # Single Python file
+            progress.progress(20, text="Processing Python file...")
+            file_path = tmppath / uploaded_file.name
+            with open(file_path, 'wb') as f:
+                f.write(uploaded_file.getbuffer())
+            project_path = tmppath
+        
+        st.session_state.current_project = uploaded_file.name
+        progress.progress(40, text="Starting analysis...")
+        analyze_directory(project_path, progress_bar=progress)
             
     except Exception as e:
         st.error(f"Error processing upload: {str(e)}")
@@ -507,28 +556,51 @@ def analyze_github_repo(repo_url: str, branch: str = "main", depth: int = 1):
     progress = st.progress(0, text="Initializing...")
     
     try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            repo_path = Path(tmpdir) / "repo"
-            
-            # Clone repository
-            progress.progress(20, text=f"Cloning repository from {repo_url}...")
-            
-            result = subprocess.run(
-                ["git", "clone", "--depth", str(depth), "--branch", branch, repo_url, str(repo_path)],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-            
-            if result.returncode != 0:
-                st.error(f"Git clone failed: {result.stderr}")
-                return
-            
-            progress.progress(40, text="Repository cloned, starting analysis...")
-            
-            # Analyze
-            st.session_state.current_project = repo_url.split('/')[-1]
-            analyze_directory(repo_path, progress_bar=progress)
+        # Use persistent session directory instead of TemporaryDirectory
+        session_id = st.session_state.get('session_id', id(st.session_state))
+        st.session_state.session_id = session_id
+        
+        # Create persistent directory for this session
+        persistent_dir = Path(tempfile.gettempdir()) / "cdd_sessions" / f"session_{session_id}"
+        persistent_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Use a unique directory name for each clone to avoid conflicts
+        import time
+        repo_name = f"repo_{int(time.time() * 1000)}"  # Use milliseconds for uniqueness
+        repo_path = persistent_dir / repo_name
+        
+        # Clean up old repo directories (keep only the most recent few)
+        repo_dirs = sorted(
+            [d for d in persistent_dir.iterdir() if d.is_dir() and d.name.startswith("repo")],
+            key=lambda x: x.stat().st_mtime,
+            reverse=True
+        )
+        # Keep only the 3 most recent, delete older ones
+        for old_repo in repo_dirs[3:]:
+            try:
+                shutil.rmtree(old_repo, ignore_errors=True)
+            except Exception:
+                pass  # Ignore cleanup errors
+        
+        # Clone repository
+        progress.progress(20, text=f"Cloning repository from {repo_url}...")
+        
+        result = subprocess.run(
+            ["git", "clone", "--depth", str(depth), "--branch", branch, repo_url, str(repo_path)],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        
+        if result.returncode != 0:
+            st.error(f"Git clone failed: {result.stderr}")
+            return
+        
+        progress.progress(40, text="Repository cloned, starting analysis...")
+        
+        # Analyze - this will store project_path in session state
+        st.session_state.current_project = repo_url.split('/')[-1]
+        analyze_directory(repo_path, progress_bar=progress)
             
     except subprocess.TimeoutExpired:
         st.error("⏱️ Clone timeout. Try a smaller repository or increase timeout.")
@@ -542,39 +614,52 @@ def analyze_uploaded_file(uploaded_file):
     progress = st.progress(0, text="Processing upload...")
     
     try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmppath = Path(tmpdir)
+        # Use persistent session directory instead of TemporaryDirectory
+        session_id = st.session_state.get('session_id', id(st.session_state))
+        st.session_state.session_id = session_id
+        
+        # Create persistent directory for this session
+        persistent_dir = Path(tempfile.gettempdir()) / "cdd_sessions" / f"session_{session_id}"
+        persistent_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Clean up old project directories in this session
+        for old_dir in persistent_dir.iterdir():
+            if old_dir.is_dir():
+                shutil.rmtree(old_dir, ignore_errors=True)
+        
+        tmppath = persistent_dir / "upload"
+        tmppath.mkdir(exist_ok=True)
+        
+        if uploaded_file.name.endswith('.zip'):
+            progress.progress(20, text="Extracting archive...")
             
-            if uploaded_file.name.endswith('.zip'):
-                progress.progress(20, text="Extracting archive...")
-                
-                # Save and extract zip
-                zip_path = tmppath / uploaded_file.name
-                with open(zip_path, 'wb') as f:
-                    f.write(uploaded_file.getbuffer())
-                
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall(tmppath / "extracted")
-                
-                project_path = tmppath / "extracted"
-                
-                # Find Python files to determine root
-                py_files = list(project_path.rglob("*.py"))
-                if py_files:
-                    # Find common root
-                    common_parent = Path(os.path.commonpath([str(f.parent) for f in py_files]))
-                    project_path = common_parent
-            else:
-                # Single Python file
-                progress.progress(20, text="Processing Python file...")
-                file_path = tmppath / uploaded_file.name
-                with open(file_path, 'wb') as f:
-                    f.write(uploaded_file.getbuffer())
-                project_path = tmppath
+            # Save and extract zip
+            zip_path = tmppath / uploaded_file.name
+            with open(zip_path, 'wb') as f:
+                f.write(uploaded_file.getbuffer())
             
-            st.session_state.current_project = uploaded_file.name
-            progress.progress(40, text="Starting analysis...")
-            analyze_directory(project_path, progress_bar=progress)
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(tmppath / "extracted")
+            
+            project_path = tmppath / "extracted"
+            
+            # Find Python files to determine root
+            py_files = list(project_path.rglob("*.py"))
+            if py_files:
+                # Find common root
+                common_parent = Path(os.path.commonpath([str(f.parent) for f in py_files]))
+                project_path = common_parent
+        else:
+            # Single Python file
+            progress.progress(20, text="Processing Python file...")
+            file_path = tmppath / uploaded_file.name
+            with open(file_path, 'wb') as f:
+                f.write(uploaded_file.getbuffer())
+            project_path = tmppath
+        
+        st.session_state.current_project = uploaded_file.name
+        progress.progress(40, text="Starting analysis...")
+        analyze_directory(project_path, progress_bar=progress)
             
     except Exception as e:
         st.error(f"Error processing upload: {str(e)}")
@@ -799,14 +884,58 @@ with tab2:
                     if st.button(f"View Code Context", key=f"code_{i}"):
                         st.markdown("### 📝 Code Context")
                         
-                        # Show actual code from the cycle files
-                        for module_path in cycle['modules'][:3]:  # Show first 3 files to avoid clutter
-                            file_path = Path(st.session_state.project_path) / module_path if 'project_path' in st.session_state else Path(module_path)
+                        # Deduplicate modules and show actual code from the cycle files
+                        unique_modules = []
+                        seen_paths = set()
+                        for module_path in cycle['modules']:
+                            # Normalize path for comparison
+                            normalized = str(module_path).replace('\\', '/').lower()
+                            if normalized not in seen_paths:
+                                seen_paths.add(normalized)
+                                unique_modules.append(module_path)
+                        
+                        # Also track displayed files to avoid showing the same file twice
+                        displayed_files = set()
+                        
+                        for module_path in unique_modules[:3]:  # Show first 3 unique files to avoid clutter
+                            # Normalize path separators and handle both relative and absolute paths
+                            module_path_normalized = str(module_path).replace('\\', '/')
                             
-                            if file_path.exists():
+                            if 'project_path' in st.session_state and st.session_state.project_path:
+                                # Try joining with project path
+                                project_path = Path(st.session_state.project_path)
+                                # Handle both relative and absolute module paths
+                                if Path(module_path_normalized).is_absolute():
+                                    file_path = Path(module_path_normalized)
+                                else:
+                                    # Try different path combinations
+                                    file_path = project_path / module_path_normalized
+                                    if not file_path.exists():
+                                        # Try with different separators
+                                        file_path = project_path / module_path_normalized.replace('/', os.sep)
+                            else:
+                                file_path = Path(module_path_normalized)
+                            
+                            # Try to find the file if it doesn't exist at the expected location
+                            if not file_path.exists() and 'project_path' in st.session_state and st.session_state.project_path:
+                                project_path = Path(st.session_state.project_path)
+                                # Search for the file by name in the project
+                                filename = Path(module_path_normalized).name
+                                for py_file in project_path.rglob(filename):
+                                    if py_file.is_file():
+                                        file_path = py_file
+                                        break
+                            
+                            # Check if we've already displayed this file (by resolved path)
+                            if file_path.exists() and file_path.is_file():
+                                file_resolved = str(file_path.resolve())
+                                if file_resolved in displayed_files:
+                                    continue  # Skip if already displayed
+                                displayed_files.add(file_resolved)
+                                
                                 st.markdown(f"**File: `{module_path}`**")
                                 try:
-                                    with open(file_path, 'r') as f:
+                                    with open(file_path, 'r', encoding='utf-8') as f:
                                         code_content = f.read()
                                     
                                     # Show just the imports section (first 20 lines or until first class/function)
@@ -822,7 +951,7 @@ with tab2:
                                 except Exception as e:
                                     st.error(f"Could not read file: {e}")
                             else:
-                                st.warning(f"File not found: {module_path}")
+                                st.warning(f"File not found: {module_path} (searched: {file_path})")
 
 # Tab 3: Visualization
 with tab3:
@@ -831,165 +960,200 @@ with tab3:
     if not st.session_state.graph_data:
         st.info("👈 Please analyze a project first")
     else:
-        # Visualization options
-        col1, col2, col3 = st.columns(3)
+        # Visualization options (placed before generation so changes trigger regeneration)
+        st.markdown("### Visualization Options")
+        col1, col2 = st.columns(2)
         
         with col1:
-            viz_type = st.selectbox(
-                "Visualization Type",
-                ["Interactive Network", "Pyvis Graph", "Matrix View"]
+            show_all_deps = st.checkbox(
+                "Show all dependencies", 
+                value=st.session_state.get('viz_show_all_deps', True),
+                key="viz_show_all_deps",
+                help="Show all dependency edges, not just cycle edges"
             )
         
         with col2:
-            show_all_deps = st.checkbox("Show all dependencies", value=False)
-            highlight_cycles = st.checkbox("Highlight cycles only", value=True)
-        
-        with col3:
-            layout = st.selectbox(
-                "Graph Layout",
-                ["Spring", "Circular", "Hierarchical", "Random"]
+            highlight_cycles_only = st.checkbox(
+                "Highlight cycles only", 
+                value=st.session_state.get('viz_highlight_cycles_only', False),
+                key="viz_highlight_cycles_only",
+                help="Show only cycle nodes and their immediate connections"
             )
         
-        if st.button("🎨 Generate Visualization", type="primary"):
-            with st.spinner("Creating visualization..."):
+        # Check if we need to regenerate visualization
+        # Compare current checkbox values with previously stored values
+        prev_show_all_deps = st.session_state.get('viz_show_all_deps_stored', None)
+        prev_highlight_cycles_only = st.session_state.get('viz_highlight_cycles_only_stored', None)
+        
+        graph_changed = (
+            st.session_state.get('viz_html') is None or 
+            st.session_state.get('viz_graph_hash') != hash(str(st.session_state.graph_data.nodes())) or
+            prev_show_all_deps != show_all_deps or
+            prev_highlight_cycles_only != highlight_cycles_only
+        )
+        
+        # Auto-generate Pyvis visualization if not already generated or settings changed
+        if graph_changed:
+            with st.spinner("🔄 Generating interactive visualization..."):
                 try:
-                    if viz_type == "Pyvis Graph":
-                        # Use the built-in DependencyVisualizer
-                        import tempfile
-                        from pathlib import Path
-                        
-                        visualizer = DependencyVisualizer(st.session_state.graph_data)
-                        
-                        # Set cycles if they exist
-                        if 'raw_cycles' in st.session_state.analysis_results:
-                            visualizer.set_cycles(st.session_state.analysis_results['raw_cycles'])
-                        
-                        # Generate HTML file
-                        with tempfile.NamedTemporaryDirectory() as tmpdir:
-                            output_path = Path(tmpdir) / "graph.html"
-                            visualizer.generate_html(output_path, height="600px")
-                            
-                            # Read and display HTML
-                            with open(output_path, 'r') as f:
-                                html_content = f.read()
-                            
-                            components.html(html_content, height=650)
+                    # Get the graph to visualize
+                    G = st.session_state.graph_data
                     
-                    elif viz_type == "Interactive Network":
-                        # Create interactive graph using networkx and plotly
-                        import plotly.graph_objects as go
-                        
-                        G = st.session_state.graph_data
-                        
-                        # Get cycle edges if available
-                        cycle_edges = set()
+                    # Filter graph if needed
+                    if highlight_cycles_only and st.session_state.analysis_results and 'raw_cycles' in st.session_state.analysis_results:
+                        # Create subgraph with only cycle nodes and their connections
                         cycle_nodes = set()
-                        if 'cycles' in st.session_state.analysis_results:
-                            for cycle_data in st.session_state.analysis_results['cycles']:
-                                chain = cycle_data.get('chain', cycle_data['modules'])
-                                cycle_nodes.update(cycle_data['modules'])
-                                for i in range(len(chain) - 1):
-                                    cycle_edges.add((chain[i], chain[i + 1]))
+                        for cycle in st.session_state.analysis_results['raw_cycles']:
+                            cycle_nodes.update(cycle.files)
                         
-                        # Generate layout
-                        if layout == "Spring":
-                            pos = nx.spring_layout(G)
-                        elif layout == "Circular":
-                            pos = nx.circular_layout(G)
-                        elif layout == "Hierarchical":
-                            pos = nx.planar_layout(G) if nx.is_planar(G) else nx.spring_layout(G)
-                        else:
-                            pos = nx.random_layout(G)
+                        # Include nodes that connect to cycle nodes
+                        if show_all_deps:
+                            # Include all neighbors of cycle nodes
+                            for node in list(cycle_nodes):
+                                cycle_nodes.update(G.predecessors(node))
+                                cycle_nodes.update(G.successors(node))
                         
-                        # Create Plotly figure
-                        edge_trace = []
-                        for edge in G.edges():
-                            x0, y0 = pos[edge[0]]
-                            x1, y1 = pos[edge[1]]
-                            
-                            color = 'red' if edge in cycle_edges else 'gray'
-                            width = 3 if edge in cycle_edges else 1
-                            
-                            edge_trace.append(
-                                go.Scatter(
-                                    x=[x0, x1, None],
-                                    y=[y0, y1, None],
-                                    line=dict(width=width, color=color),
-                                    hoverinfo='none',
-                                    mode='lines'
-                                )
-                            )
-                        
-                        # Node trace
-                        node_x = []
-                        node_y = []
-                        node_text = []
-                        node_color = []
-                        
-                        for node in G.nodes():
-                            x, y = pos[node]
-                            node_x.append(x)
-                            node_y.append(y)
-                            node_text.append(node.split('/')[-1] if '/' in node else node)
-                            node_color.append('red' if node in cycle_nodes else 'lightblue')
-                        
-                        node_trace = go.Scatter(
-                            x=node_x, y=node_y,
-                            mode='markers+text',
-                            hoverinfo='text',
-                            text=node_text,
-                            hovertext=[node for node in G.nodes()],
-                            textposition="top center",
-                            marker=dict(
-                                size=12,
-                                color=node_color,
-                                line=dict(width=2)
-                            )
-                        )
-                        
-                        fig = go.Figure(
-                            data=edge_trace + [node_trace],
-                            layout=go.Layout(
-                                showlegend=False,
-                                hovermode='closest',
-                                margin=dict(b=0, l=0, r=0, t=0),
-                                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                                height=600
-                            )
-                        )
-                        
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                    elif viz_type == "Matrix View":
-                        # Create adjacency matrix
-                        st.info("Dependency Matrix View")
-                        
-                        nodes = list(G.nodes())
-                        matrix = []
-                        
-                        for node1 in nodes:
-                            row = []
-                            for node2 in nodes:
-                                if G.has_edge(node1, node2):
-                                    row.append(1)
-                                else:
-                                    row.append(0)
-                            matrix.append(row)
-                        
-                        # Create DataFrame with shortened labels
-                        short_labels = [n.split('/')[-1] if '/' in n else n for n in nodes]
-                        df = pd.DataFrame(matrix, index=short_labels, columns=short_labels)
-                        
-                        # Display with color coding
-                        st.dataframe(
-                            df.style.background_gradient(cmap='RdYlBu_r', vmin=0, vmax=1),
-                            use_container_width=True
-                        )
+                        # Create subgraph
+                        G = G.subgraph(cycle_nodes).copy()
+                    
+                    visualizer = DependencyVisualizer(G)
+                    
+                    # Set cycles if they exist
+                    if st.session_state.analysis_results and 'raw_cycles' in st.session_state.analysis_results:
+                        # Filter cycles to only those in the current graph
+                        filtered_cycles = []
+                        graph_nodes = set(G.nodes())
+                        for cycle in st.session_state.analysis_results['raw_cycles']:
+                            if any(node in graph_nodes for node in cycle.files):
+                                filtered_cycles.append(cycle)
+                        visualizer.set_cycles(filtered_cycles)
+                    
+                    # Generate HTML file in a persistent location
+                    viz_dir = Path(tempfile.gettempdir()) / "cdd_viz"
+                    viz_dir.mkdir(exist_ok=True)
+                    output_path = viz_dir / f"graph_{id(st.session_state.graph_data)}_{show_all_deps}_{highlight_cycles_only}.html"
+                    
+                    visualizer.generate_html(output_path, height="750px", width="100%")
+                    
+                    # Read and inject legend into HTML
+                    with open(output_path, 'r', encoding='utf-8') as f:
+                        html_content = f.read()
+                    
+                    # Remove lib folder references since we're using CDN and embedding in Streamlit
+                    # This makes the HTML fully standalone and doesn't require the lib folder
+                    import re
+                    html_content = re.sub(
+                        r'<script src="lib/[^"]*"></script>\s*',
+                        '',
+                        html_content
+                    )
+                    html_content = re.sub(
+                        r'<link[^>]*href="lib/[^"]*"[^>]*>\s*',
+                        '',
+                        html_content
+                    )
+                    
+                    # Inject legend overlay into the HTML
+                    legend_html = """
+                    <div id="cdd-legend" style="
+                        position: absolute;
+                        bottom: 10px;
+                        left: 10px;
+                        background: rgba(255, 255, 255, 0.95);
+                        border: 2px solid #333;
+                        border-radius: 8px;
+                        padding: 12px;
+                        font-family: Arial, sans-serif;
+                        font-size: 12px;
+                        z-index: 1000;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                        max-width: 300px;
+                    ">
+                        <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">📋 Color Legend</div>
+                        <div style="margin-bottom: 6px;">
+                            <strong>Node Colors:</strong><br>
+                            <div style="margin: 3px 0;">
+                                <span style="display: inline-block; width: 16px; height: 16px; background-color: #97C2FC; border: 1px solid #333; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>
+                                Light Blue - Normal
+                            </div>
+                            <div style="margin: 3px 0;">
+                                <span style="display: inline-block; width: 16px; height: 16px; background-color: #90EE90; border: 1px solid #333; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>
+                                Green - Low
+                            </div>
+                            <div style="margin: 3px 0;">
+                                <span style="display: inline-block; width: 16px; height: 16px; background-color: #FFD700; border: 1px solid #333; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>
+                                Gold - Medium
+                            </div>
+                            <div style="margin: 3px 0;">
+                                <span style="display: inline-block; width: 16px; height: 16px; background-color: #FFA500; border: 1px solid #333; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>
+                                Orange - High
+                            </div>
+                            <div style="margin: 3px 0;">
+                                <span style="display: inline-block; width: 16px; height: 16px; background-color: #FF4500; border: 1px solid #333; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>
+                                Red - Critical
+                            </div>
+                        </div>
+                        <div>
+                            <strong>Edge Colors:</strong><br>
+                            <div style="margin: 3px 0;">
+                                <span style="display: inline-block; width: 30px; height: 2px; background-color: #848484; border: 1px solid #333; vertical-align: middle; margin-right: 6px;"></span>
+                                Gray - Normal
+                            </div>
+                            <div style="margin: 3px 0;">
+                                <span style="display: inline-block; width: 30px; height: 2px; background-color: #FF0000; border: 1px solid #333; vertical-align: middle; margin-right: 6px;"></span>
+                                Red - Cycle
+                            </div>
+                        </div>
+                    </div>
+                    """
+                    
+                    import re
+                    
+                    # Make the card div position relative
+                    html_content = re.sub(
+                        r'<div class="card" style="([^"]*)"',
+                        r'<div class="card" style="\1; position: relative;"',
+                        html_content
+                    )
+                    
+                    # Inject legend inside the card div, after mynetwork div
+                    # Find: <div id="mynetwork"...></div> and inject legend after it
+                    html_content = re.sub(
+                        r'(<div id="mynetwork"[^>]*></div>)',
+                        r'\1\n            ' + legend_html,
+                        html_content,
+                        count=1
+                    )
+                    
+                    st.session_state.viz_html = html_content
+                    st.session_state.viz_graph_hash = hash(str(st.session_state.graph_data.nodes()))
+                    st.session_state.viz_path = str(output_path)
+                    # Store the values that were used for this generation
+                    st.session_state.viz_show_all_deps_stored = show_all_deps
+                    st.session_state.viz_highlight_cycles_only_stored = highlight_cycles_only
                     
                 except Exception as e:
-                    st.error(f"Visualization error: {str(e)}")
+                    st.error(f"Visualization generation error: {str(e)}")
                     st.code(traceback.format_exc())
+        
+        # Display the visualization
+        if st.session_state.get('viz_html'):
+            st.markdown("---")
+            st.markdown("### 🎨 Interactive Dependency Graph")
+            st.info("💡 **Drag nodes to rearrange** | **Hover for details** | **Zoom with mouse wheel** | **Click and drag to pan** | **Legend in bottom-left corner**")
+            
+            # Display the HTML visualization
+            components.html(st.session_state.viz_html, height=800, scrolling=True)
+            
+            # Download button
+            if st.session_state.get('viz_path'):
+                with open(st.session_state.viz_path, 'rb') as f:
+                    st.download_button(
+                        label="📥 Download Visualization (HTML)",
+                        data=f.read(),
+                        file_name="dependency_graph.html",
+                        mime="text/html"
+                    )
 
 # Tab 4: Fix Suggestions
 with tab4:
