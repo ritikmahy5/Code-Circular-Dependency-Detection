@@ -837,6 +837,39 @@ with tab2:
             
             st.subheader(f"Found {len(filtered_cycles)} cycles matching filters")
             
+            # Add methodology explanation with citations
+            with st.expander("ℹ️ How are circular dependencies detected and scored?"):
+                st.markdown("### Detection Methodology")
+                if st.session_state.github_url:
+                    st.markdown(f"""
+                    **Algorithm:** [Tarjan's Strongly Connected Components (SCC)]({st.session_state.github_url}/blob/main/src/graph/analyzer.py)
+                    - Guarantees 100% cycle detection
+                    - Finds all circular dependencies in O(V+E) time
+                    - Implementation: `src/graph/analyzer.py`
+                    
+                    **Severity Scoring:** [Multi-factor Severity Calculator]({st.session_state.github_url}/blob/main/src/scoring/severity.py)
+                    - Cycle length (how many files involved)
+                    - Coupling density (how tightly connected)
+                    - Node importance (centrality metrics)
+                    - Implementation: `src/scoring/severity.py`
+                    
+                    **Pattern Matching:** [Refactoring Patterns]({st.session_state.github_url}/tree/main/knowledge_base/patterns)
+                    - 4 documented refactoring patterns
+                    - YAML-based pattern definitions
+                    - Location: `knowledge_base/patterns/`
+                    """)
+                else:
+                    st.markdown("""
+                    **Algorithm:** Tarjan's Strongly Connected Components (SCC)
+                    - Implementation: `src/graph/analyzer.py`
+                    
+                    **Severity Scoring:** Multi-factor Severity Calculator
+                    - Implementation: `src/scoring/severity.py`
+                    
+                    **Pattern Matching:** Refactoring Patterns
+                    - Location: `knowledge_base/patterns/`
+                    """)
+            
             # Display cycles
             for i, cycle in enumerate(filtered_cycles, 1):
                 severity = cycle['severity']
@@ -859,6 +892,25 @@ with tab2:
                     f"{emoji} **Cycle {i}** | Severity: {severity}/10 | Size: {cycle['size']} modules",
                     expanded=(i <= 3)  # Expand first 3
                 ):
+                    # Problem Type with Citation
+                    st.markdown("**🔍 Problem Type:**")
+                    if cycle['size'] == 1:
+                        problem_type = "**Self-Cycle** (Module imports itself)"
+                    elif cycle['size'] == 2:
+                        problem_type = "**Direct Circular Dependency** (A → B → A)"
+                    else:
+                        problem_type = f"**Indirect Circular Dependency** (Chain of {cycle['size']} modules)"
+                    
+                    # Add citation to methodology
+                    if st.session_state.github_url:
+                        algo_url = f"{st.session_state.github_url}/blob/main/src/graph/analyzer.py"
+                        severity_url = f"{st.session_state.github_url}/blob/main/src/scoring/severity.py"
+                        st.markdown(f"{problem_type}")
+                        st.markdown(f"📚 Detected using [Tarjan's SCC Algorithm]({algo_url}) | Scored by [Severity Calculator]({severity_url})")
+                    else:
+                        st.markdown(f"{problem_type}")
+                        st.markdown(f"📚 Detection: `src/graph/analyzer.py` | Scoring: `src/scoring/severity.py`")
+                    
                     # Cycle path
                     st.markdown("**📦 Module Path:**")
                     cycle_path = " → ".join(cycle['modules']) + " → " + cycle['modules'][0]
