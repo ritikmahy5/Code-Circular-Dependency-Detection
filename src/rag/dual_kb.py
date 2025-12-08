@@ -128,8 +128,9 @@ class DualKnowledgeRAG:
         load_persistent_db: bool = True,
         max_persistent_chunks: int = 0,  # 0 = load ALL chunks (42,660)
     ):
-        # Use CPU for stability (MPS can have issues with meta tensors)
-        self.encoder = EmbeddingModel(device="cpu")
+        # Auto-detect GPU (CUDA) if available, fallback to CPU
+        # This enables GPU acceleration for embeddings when GPU is available
+        self.encoder = EmbeddingModel(device="auto")
         self.persist_dir = persist_dir
         self.use_chroma = use_chroma
         self.max_persistent_chunks = max_persistent_chunks

@@ -51,8 +51,13 @@ class EmbeddingModel:
                 pass
             return "cpu"
         
-        # Auto mode - prefer CPU for stability (MPS has known issues)
-        # This is the safest option for sentence-transformers
+        # Auto mode - try CUDA first if available, then fallback to CPU
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return "cuda"
+        except ImportError:
+            pass
         return "cpu"
     
     @property
@@ -62,19 +67,17 @@ class EmbeddingModel:
             try:
                 from sentence_transformers import SentenceTransformer
                 
-                # Load model on CPU first (most stable)
-                print(f"Loading embedding model: {self.model_name}...")
-                self._model = SentenceTransformer(self.model_name, device="cpu")
-                
-                # Try to move to target device if not CPU
-                if self.device != "cpu":
-                    try:
-                        self._model = self._model.to(self.device)
-                        print(f"✅ Embedding model loaded on {self.device}")
-                    except Exception as e:
-                        print(f"⚠️ Could not use {self.device}, staying on CPU: {e}")
-                        self.device = "cpu"
-                else:
+                # Load model directly on target device for better performance
+                print(f"Loading embedding model: {self.model_name} on {self.device}...")
+                try:
+                    # Try loading directly on GPU if available
+                    self._model = SentenceTransformer(self.model_name, device=self.device)
+                    print(f"✅ Embedding model loaded on {self.device}")
+                except Exception as e:
+                    # Fallback to CPU if GPU loading fails
+                    print(f"⚠️ Could not load on {self.device}, falling back to CPU: {e}")
+                    self.device = "cpu"
+                    self._model = SentenceTransformer(self.model_name, device="cpu")
                     print(f"✅ Embedding model loaded on CPU")
                     
             except Exception as e:
@@ -82,13 +85,13 @@ class EmbeddingModel:
         
         return self._model
     
-    def encode(self, texts: list[str], batch_size: int = 32, show_progress: bool = False) -> np.ndarray:
+    def encode(self, texts: list[str], batch_size: int = None, show_progress: bool = False) -> np.ndarray:
         """
         Encode texts to embeddings.
         
         Args:
             texts: List of texts to encode
-            batch_size: Batch size for encoding
+            batch_size: Batch size for encoding (auto-optimized for GPU if None)
             show_progress: Show progress bar
             
         Returns:
@@ -97,11 +100,19 @@ class EmbeddingModel:
         if not texts:
             return np.array([])
         
+        # Optimize batch size for GPU (larger batches = better GPU utilization)
+        if batch_size is None:
+            if self.device == "cuda":
+                batch_size = 128  # Larger batches for GPU
+            else:
+                batch_size = 32   # Smaller batches for CPU
+        
         return self.model.encode(
             texts, 
             convert_to_numpy=True,
             batch_size=batch_size,
-            show_progress_bar=show_progress
+            show_progress_bar=show_progress,
+            device=self.device  # Explicitly use the device
         )
     
     def encode_single(self, text: str) -> np.ndarray:

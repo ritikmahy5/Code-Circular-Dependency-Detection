@@ -7,7 +7,12 @@ astunparse>=1.6.3
 
 # RAG and Embeddings
 sentence-transformers>=2.2.0
-faiss-cpu>=1.7.4
+# Use faiss-gpu for GPU acceleration (falls back to faiss-cpu if GPU not available)
+faiss-gpu>=1.7.4
+# PyTorch with CUDA support (for sentence-transformers GPU acceleration)
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
 
 # LLM
 anthropic>=0.18.0
