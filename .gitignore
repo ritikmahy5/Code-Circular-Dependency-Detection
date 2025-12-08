@@ -39,3 +39,14 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Temporary files and folders
+temp/
+lib/
+test_m4_*.py
+*_analysis.json
+django_*.html
+cycle.html
+
+# Other projects
+SqlSensei/
