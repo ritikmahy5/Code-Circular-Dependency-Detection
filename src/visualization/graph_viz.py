@@ -2,6 +2,7 @@
 from pathlib import Path
 from typing import Optional
 import networkx as nx
+import json
 
 from ..graph.analyzer import CycleInfo, SeverityLevel
 
@@ -42,6 +43,9 @@ class DependencyVisualizer:
             # Add edges from the chain
             for i in range(len(cycle.chain) - 1):
                 self._cycle_edges.add((cycle.chain[i], cycle.chain[i + 1]))
+            # Also add the closing edge
+            if cycle.chain:
+                self._cycle_edges.add((cycle.chain[-1], cycle.chain[0]))
     
     def generate_html(
         self, 
@@ -50,116 +54,36 @@ class DependencyVisualizer:
         width: str = "100%",
         notebook: bool = False,
     ) -> Path:
-        """Generate interactive HTML visualization."""
-        from pyvis.network import Network
+        """Generate interactive HTML visualization with embedded CDN libraries."""
         
-        # Create network with better settings
-        net = Network(
-            height=height,
-            width=width,
-            directed=True,
-            notebook=notebook,
-            bgcolor="#ffffff",
-            font_color="#000000",
-            select_menu=True,  # Enable selection menu
-            filter_menu=True,  # Enable filter menu
-        )
-        
-        # Configure physics for better visualization
-        net.set_options("""
-        {
-            "physics": {
-                "forceAtlas2Based": {
-                    "gravitationalConstant": -80,
-                    "centralGravity": 0.015,
-                    "springLength": 250,
-                    "springConstant": 0.12,
-                    "damping": 0.4,
-                    "avoidOverlap": 0.5
-                },
-                "maxVelocity": 40,
-                "solver": "forceAtlas2Based",
-                "timestep": 0.4,
-                "stabilization": {
-                    "enabled": true,
-                    "iterations": 200,
-                    "updateInterval": 25
-                }
-            },
-            "edges": {
-                "arrows": {
-                    "to": {
-                        "enabled": true,
-                        "scaleFactor": 0.6,
-                        "type": "arrow"
-                    }
-                },
-                "smooth": {
-                    "enabled": true,
-                    "type": "dynamic",
-                    "roundness": 0.5
-                },
-                "width": 2,
-                "selectionWidth": 4,
-                "hoverWidth": 3
-            },
-            "nodes": {
-                "shape": "dot",
-                "font": {
-                    "size": 14,
-                    "face": "Arial"
-                },
-                "borderWidth": 2,
-                "borderWidthSelected": 4,
-                "shadow": {
-                    "enabled": true,
-                    "color": "rgba(0,0,0,0.3)",
-                    "size": 10,
-                    "x": 2,
-                    "y": 2
-                }
-            },
-            "interaction": {
-                "hover": true,
-                "tooltipDelay": 100,
-                "hideEdgesOnDrag": false,
-                "navigationButtons": true,
-                "keyboard": {
-                    "enabled": true
-                },
-                "zoomView": true,
-                "dragView": true
-            },
-            "configure": {
-                "enabled": false
-            }
-        }
-        """)
-        
-        # Add nodes with improved styling
+        # Build nodes data
+        nodes = []
         for node in self.graph.nodes():
             color = self._get_node_color(node)
             title = self._get_node_tooltip(node)
             
             # Calculate node size based on degree centrality
             degree = self.graph.degree(node)
-            node_size = 20 + (degree * 2)  # Scale by connections
+            node_size = 20 + (degree * 3)
             if node in self._cycle_nodes:
-                node_size += 10  # Make cycle nodes larger
+                node_size += 10
             
-            net.add_node(
-                node,
-                label=self._get_short_name(node),
-                title=title,
-                color=color,
-                size=node_size,
-                borderWidth=3 if node in self._cycle_nodes else 2,
-            )
+            nodes.append({
+                "id": node,
+                "label": self._get_short_name(node),
+                "title": title,
+                "color": color,
+                "size": node_size,
+                "borderWidth": 3 if node in self._cycle_nodes else 2,
+                "font": {"size": 12}
+            })
         
-        # Add edges
+        # Build edges data
+        edges = []
         for source, target in self.graph.edges():
-            color = self.COLORS["edge_cycle"] if (source, target) in self._cycle_edges else self.COLORS["edge_normal"]
-            width = 3 if (source, target) in self._cycle_edges else 1
+            is_cycle_edge = (source, target) in self._cycle_edges
+            color = self.COLORS["edge_cycle"] if is_cycle_edge else self.COLORS["edge_normal"]
+            width = 3 if is_cycle_edge else 1
             
             edge_data = self.graph.edges[source, target]
             title = f"Line {edge_data.get('line', '?')}"
@@ -168,20 +92,207 @@ class DependencyVisualizer:
             if edge_data.get('local'):
                 title += " (local import)"
             
-            net.add_edge(
-                source, 
-                target,
-                color=color,
-                width=width,
-                title=title,
-            )
+            edges.append({
+                "from": source,
+                "to": target,
+                "color": {"color": color},
+                "width": width,
+                "title": title,
+                "arrows": {"to": {"enabled": True, "scaleFactor": 0.5}}
+            })
+        
+        # Generate self-contained HTML with CDN
+        html_content = self._generate_standalone_html(nodes, edges, height, width)
         
         # Save
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        net.save_graph(str(output_path))
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
         
         return output_path
+    
+    def _generate_standalone_html(self, nodes: list, edges: list, height: str, width: str) -> str:
+        """Generate self-contained HTML with vis.js from CDN."""
+        
+        nodes_json = json.dumps(nodes)
+        edges_json = json.dumps(edges)
+        
+        html = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Dependency Graph Visualization</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style type="text/css">
+        html, body {{
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }}
+        #mynetwork {{
+            width: {width};
+            height: {height};
+            border: 1px solid #ddd;
+            background-color: #ffffff;
+        }}
+        #legend {{
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 12px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }}
+        #legend h4 {{
+            margin: 0 0 8px 0;
+            font-size: 14px;
+        }}
+        .legend-item {{
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+        }}
+        .legend-color {{
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            margin-right: 8px;
+            border: 1px solid #333;
+        }}
+        .legend-line {{
+            width: 30px;
+            height: 3px;
+            margin-right: 8px;
+        }}
+        #stats {{
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 12px;
+        }}
+    </style>
+</head>
+<body>
+    <div id="mynetwork"></div>
+    
+    <div id="legend">
+        <h4>📋 Color Legend</h4>
+        <div><strong>Node Colors:</strong></div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #97C2FC;"></div>
+            <span>Normal (no cycle)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #90EE90;"></div>
+            <span>Low severity</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #FFD700;"></div>
+            <span>Medium severity</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #FFA500;"></div>
+            <span>High severity</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #FF4500;"></div>
+            <span>Critical severity</span>
+        </div>
+        <div style="margin-top: 8px;"><strong>Edge Colors:</strong></div>
+        <div class="legend-item">
+            <div class="legend-line" style="background-color: #848484;"></div>
+            <span>Normal dependency</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-line" style="background-color: #FF0000;"></div>
+            <span>Circular dependency</span>
+        </div>
+    </div>
+    
+    <div id="stats">
+        <strong>📊 Graph Stats</strong><br>
+        Nodes: {len(nodes)}<br>
+        Edges: {len(edges)}<br>
+        Cycles: {len(self._cycles)}
+    </div>
+
+    <script type="text/javascript">
+        // Create nodes and edges
+        var nodes = new vis.DataSet({nodes_json});
+        var edges = new vis.DataSet({edges_json});
+
+        // Create network
+        var container = document.getElementById('mynetwork');
+        var data = {{
+            nodes: nodes,
+            edges: edges
+        }};
+        
+        var options = {{
+            physics: {{
+                enabled: true,
+                solver: 'forceAtlas2Based',
+                forceAtlas2Based: {{
+                    gravitationalConstant: -100,
+                    centralGravity: 0.01,
+                    springLength: 200,
+                    springConstant: 0.08,
+                    damping: 0.4,
+                    avoidOverlap: 0.5
+                }},
+                stabilization: {{
+                    enabled: true,
+                    iterations: 200,
+                    updateInterval: 25
+                }}
+            }},
+            nodes: {{
+                shape: 'dot',
+                font: {{
+                    size: 14,
+                    face: 'Arial'
+                }},
+                shadow: true
+            }},
+            edges: {{
+                smooth: {{
+                    enabled: true,
+                    type: 'dynamic'
+                }},
+                shadow: true
+            }},
+            interaction: {{
+                hover: true,
+                tooltipDelay: 100,
+                navigationButtons: true,
+                keyboard: true,
+                zoomView: true,
+                dragView: true
+            }}
+        }};
+
+        var network = new vis.Network(container, data, options);
+        
+        // Stop physics after stabilization
+        network.on("stabilizationIterationsDone", function () {{
+            network.setOptions({{ physics: {{ enabled: false }} }});
+        }});
+    </script>
+</body>
+</html>'''
+        
+        return html
     
     def _get_node_color(self, node: str) -> str:
         """Get color for a node based on cycle membership."""

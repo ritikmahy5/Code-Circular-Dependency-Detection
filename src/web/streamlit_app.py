@@ -28,7 +28,7 @@ try:
     from src.explainer.generator import CycleExplainer
     from src.llm.factory import get_llm
     from src.knowledge.loader import PatternLoader
-    from src.rag.dual_kb import DualKnowledgeRAG, RAGContext
+    from src.rag.dual_kb import DualKnowledgeRAG, RAGContext, create_rag_with_persistent_db
     from src.chat import CodebaseChat
     from src.fixer import AutoFixer, FixStrategy
 except ImportError as e:
@@ -926,6 +926,88 @@ with tab2:
                         st.metric("Complexity", "High" if severity >= 7 else "Medium" if severity >= 4 else "Low")
                     with col4:
                         st.metric("Priority", "Critical" if severity >= 8 else "High" if severity >= 6 else "Normal")
+
+                    # "View Code Context" button to toggle visibility
+                    if st.button("View Code Context", key=f"view_code_{i}"):
+                        # Toggle the state for this specific cycle
+                        st.session_state[f"show_code_{i}"] = not st.session_state.get(f"show_code_{i}", False)
+
+                    # Display code context if toggled
+                    if st.session_state.get(f"show_code_{i}", False):
+                        st.markdown("### 📄 Code Context")
+                        
+                        project_path = st.session_state.get('project_path')
+                        if not project_path:
+                            st.error("Project path is not set. Please analyze a project first.")
+                        else:
+                            project_root = Path(project_path)
+                            displayed_files = set()
+
+                            for module_name in cycle['modules']:
+                                file_to_read = None
+                                
+                                # Normalize module name: replace path separators with dots
+                                normalized_module_name = module_name.replace('/', '.').replace('\\', '.')
+                                if normalized_module_name.endswith('.py'):
+                                    normalized_module_name = normalized_module_name[:-3]
+
+                                parts = normalized_module_name.split('.')
+                                
+                                # Case 1: path/to/module.py
+                                potential_path1 = project_root.joinpath(*parts).with_suffix('.py')
+                                
+                                # Case 2: path/to/package/__init__.py
+                                potential_path2 = project_root.joinpath(*parts, '__init__.py')
+
+                                if potential_path1.exists() and potential_path1.is_file():
+                                    file_to_read = potential_path1
+                                elif potential_path2.exists() and potential_path2.is_file():
+                                    file_to_read = potential_path2
+                                else:
+                                    # Fallback for when module name is already a direct path
+                                    direct_path = project_root / module_name
+                                    if direct_path.exists() and direct_path.is_file():
+                                        file_to_read = direct_path
+
+                                if file_to_read and file_to_read.is_file():
+                                    resolved_path_str = str(file_to_read.resolve())
+                                    if resolved_path_str in displayed_files:
+                                        continue
+                                    displayed_files.add(resolved_path_str)
+
+                                    try:
+                                        rel_path = file_to_read.relative_to(project_root)
+                                        github_file_url = f"{st.session_state.github_url}/blob/main/{rel_path}"
+                                        st.markdown(f"**File: [{rel_path}]({github_file_url})** 📎")
+                                    except (ValueError, KeyError):
+                                        st.markdown(f"**File: `{file_to_read}`** (local)")
+
+                                    try:
+                                        with open(file_to_read, 'r', encoding='utf-8') as f:
+                                            code_content = f.read()
+                                        
+                                        lines = code_content.split('\n')
+                                        import_section = []
+                                        for i, line in enumerate(lines[:30]):
+                                            line_num = i + 1
+                                            if 'github_url' in st.session_state and st.session_state.github_url:
+                                                try:
+                                                    rel_path = file_to_read.relative_to(project_root)
+                                                    line_url = f"{st.session_state.github_url}/blob/main/{rel_path}#L{line_num}"
+                                                    import_section.append(f"[{line_num: >3}]({line_url}) {line}")
+                                                except (ValueError, KeyError):
+                                                    import_section.append(f"{line_num: >3}  {line}")
+                                            else:
+                                                import_section.append(f"{line_num: >3}  {line}")
+                                        
+                                        if len(lines) > 30:
+                                            import_section.append("...")
+
+                                        st.code('\n'.join(import_section), language="python")
+                                    except Exception as e:
+                                        st.error(f"Could not read file `{file_to_read}`: {e}")
+                                else:
+                                    st.warning(f"File not found for module: `{module_name}`")
                     
                     # LLM Explanation
                     if 'explanation' in cycle and cycle['explanation']:
@@ -1038,7 +1120,7 @@ with tab2:
                                     lines = code_content.split('\n')
                                     import_section = []
                                     line_num = 1
-                                    for line in lines[:30]:  # Check first 30 lines
+                                    for line in lines[:30]:
                                         # Add clickable line numbers for GitHub
                                         if st.session_state.github_url and 'import' in line:
                                             try:
@@ -1102,7 +1184,7 @@ with tab3:
             prev_highlight_cycles_only != highlight_cycles_only
         )
         
-        # Auto-generate Pyvis visualization if not already generated or settings changed
+        # Auto-generate visualization if not already generated or settings changed
         if graph_changed:
             with st.spinner("🔄 Generating interactive visualization..."):
                 try:
@@ -1143,98 +1225,12 @@ with tab3:
                     viz_dir.mkdir(exist_ok=True)
                     output_path = viz_dir / f"graph_{id(st.session_state.graph_data)}_{show_all_deps}_{highlight_cycles_only}.html"
                     
-                    # Generate with better dimensions
-                    visualizer.generate_html(output_path, height="900px", width="100%")
+                    # Generate self-contained HTML with CDN (includes legend and stats)
+                    visualizer.generate_html(output_path, height="800px", width="100%")
                     
-                    # Read and inject legend into HTML
+                    # Read the generated HTML (already self-contained with CDN)
                     with open(output_path, 'r', encoding='utf-8') as f:
                         html_content = f.read()
-                    
-                    # Remove lib folder references since we're using CDN and embedding in Streamlit
-                    # This makes the HTML fully standalone and doesn't require the lib folder
-                    import re
-                    html_content = re.sub(
-                        r'<script src="lib/[^"]*"></script>\s*',
-                        '',
-                        html_content
-                    )
-                    html_content = re.sub(
-                        r'<link[^>]*href="lib/[^"]*"[^>]*>\s*',
-                        '',
-                        html_content
-                    )
-                    
-                    # Inject legend overlay into the HTML
-                    legend_html = """
-                    <div id="cdd-legend" style="
-                        position: absolute;
-                        bottom: 10px;
-                        left: 10px;
-                        background: rgba(255, 255, 255, 0.95);
-                        border: 2px solid #333;
-                        border-radius: 8px;
-                        padding: 12px;
-                        font-family: Arial, sans-serif;
-                        font-size: 12px;
-                        z-index: 1000;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-                        max-width: 300px;
-                    ">
-                        <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px;">📋 Color Legend</div>
-                        <div style="margin-bottom: 6px;">
-                            <strong>Node Colors:</strong><br>
-                            <div style="margin: 3px 0;">
-                                <span style="display: inline-block; width: 16px; height: 16px; background-color: #97C2FC; border: 1px solid #333; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>
-                                Light Blue - Normal
-                            </div>
-                            <div style="margin: 3px 0;">
-                                <span style="display: inline-block; width: 16px; height: 16px; background-color: #90EE90; border: 1px solid #333; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>
-                                Green - Low
-                            </div>
-                            <div style="margin: 3px 0;">
-                                <span style="display: inline-block; width: 16px; height: 16px; background-color: #FFD700; border: 1px solid #333; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>
-                                Gold - Medium
-                            </div>
-                            <div style="margin: 3px 0;">
-                                <span style="display: inline-block; width: 16px; height: 16px; background-color: #FFA500; border: 1px solid #333; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>
-                                Orange - High
-                            </div>
-                            <div style="margin: 3px 0;">
-                                <span style="display: inline-block; width: 16px; height: 16px; background-color: #FF4500; border: 1px solid #333; border-radius: 3px; vertical-align: middle; margin-right: 6px;"></span>
-                                Red - Critical
-                            </div>
-                        </div>
-                        <div>
-                            <strong>Edge Colors:</strong><br>
-                            <div style="margin: 3px 0;">
-                                <span style="display: inline-block; width: 30px; height: 2px; background-color: #848484; border: 1px solid #333; vertical-align: middle; margin-right: 6px;"></span>
-                                Gray - Normal
-                            </div>
-                            <div style="margin: 3px 0;">
-                                <span style="display: inline-block; width: 30px; height: 2px; background-color: #FF0000; border: 1px solid #333; vertical-align: middle; margin-right: 6px;"></span>
-                                Red - Cycle
-                            </div>
-                        </div>
-                    </div>
-                    """
-                    
-                    import re
-                    
-                    # Make the card div position relative
-                    html_content = re.sub(
-                        r'<div class="card" style="([^"]*)"',
-                        r'<div class="card" style="\1; position: relative;"',
-                        html_content
-                    )
-                    
-                    # Inject legend inside the card div, after mynetwork div
-                    # Find: <div id="mynetwork"...></div> and inject legend after it
-                    html_content = re.sub(
-                        r'(<div id="mynetwork"[^>]*></div>)',
-                        r'\1\n            ' + legend_html,
-                        html_content,
-                        count=1
-                    )
                     
                     st.session_state.viz_html = html_content
                     st.session_state.viz_graph_hash = hash(str(st.session_state.graph_data.nodes()))
@@ -1242,6 +1238,8 @@ with tab3:
                     # Store the values that were used for this generation
                     st.session_state.viz_show_all_deps_stored = show_all_deps
                     st.session_state.viz_highlight_cycles_only_stored = highlight_cycles_only
+                    
+                    st.success(f"✅ Generated visualization with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
                     
                 except Exception as e:
                     st.error(f"Visualization generation error: {str(e)}")
@@ -1433,10 +1431,11 @@ with tab4:
                         # Initialize AutoFixer
                         fixer = AutoFixer()
                         
-                        # Generate fixes
+                        # Generate fixes - use the actual project_path, not current_project name
+                        project_path_for_fixer = st.session_state.get('project_path', Path('.'))
                         fixes = fixer.generate_fix_sync(
                             cycle=raw_cycle,
-                            project_path=Path(st.session_state.current_project) if st.session_state.current_project else Path("."),
+                            project_path=project_path_for_fixer,
                             strategy=fix_strategy[1]
                         )
                         
@@ -1473,23 +1472,86 @@ with tab5:
     # Initialize chat in session state
     if 'chat_instance' not in st.session_state:
         st.session_state.chat_instance = None
+    if 'chat_init_error' not in st.session_state:
+        st.session_state.chat_init_error = None
     
-    # Try to initialize chat if we have a project path and analysis results
+    # Show initialization button if not initialized
     if (st.session_state.chat_instance is None and 
         'project_path' in st.session_state and 
         st.session_state.project_path):
-        try:
-            with st.spinner("Initializing AI Assistant..."):
-                st.session_state.chat_instance = CodebaseChat(st.session_state.project_path)
-                st.success("✅ AI Assistant ready!")
-        except Exception as e:
-            st.error(f"Could not initialize chat: {e}")
-            st.info("Make sure Ollama is running: `ollama serve`")
-            st.session_state.chat_instance = None
+        
+        # Show any previous error
+        if st.session_state.chat_init_error:
+            st.error(f"Previous initialization failed: {st.session_state.chat_init_error}")
+            st.markdown("""
+            **Possible solutions:**
+            1. Make sure Ollama is running: `ollama serve`
+            2. Try restarting the Streamlit app
+            3. Check if you have enough RAM (embedding model needs ~500MB)
+            """)
+        
+        # Manual initialization button
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            use_persistent_db = st.checkbox("Load 42k knowledge base", value=False, 
+                help="Loads pre-built Django code chunks. Disable if you get memory errors.")
+        with col2:
+            if st.button("🚀 Initialize AI Assistant", type="primary"):
+                try:
+                    with st.spinner("Initializing AI Assistant (should be fast)..."):
+                        # Get existing analysis results to avoid re-analyzing
+                        existing_graph = st.session_state.get('graph_data')
+                        existing_cycles = None
+                        if st.session_state.analysis_results and 'raw_cycles' in st.session_state.analysis_results:
+                            existing_cycles = st.session_state.analysis_results['raw_cycles']
+                        
+                        # Initialize chat with existing analysis
+                        st.session_state.chat_instance = CodebaseChat(
+                            st.session_state.project_path,
+                            use_persistent_db=use_persistent_db,
+                            existing_graph=existing_graph,
+                            existing_cycles=existing_cycles,
+                            max_files_to_chunk=50,  # Only chunk 50 files max for speed
+                        )
+                        st.session_state.chat_init_error = None
+                        st.success("✅ AI Assistant ready!")
+                        st.rerun()
+                except Exception as e:
+                    st.session_state.chat_init_error = str(e)
+                    st.error(f"Initialization failed: {e}")
+                    st.code(traceback.format_exc())
     
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
-    
+
+    def process_chat_message(user_message: str):
+        """Helper function to process user input and update chat."""
+        # Add user message to history
+        st.session_state.chat_history.append({'role': 'user', 'content': user_message})
+        
+        # Get AI response
+        with st.spinner("🧠 AI is thinking..."):
+            try:
+                response, context = st.session_state.chat_instance.ask_sync(user_message)
+                
+                # Generate citations from the context
+                citations = context.to_streamlit_display(st.session_state.get('github_url'))
+                
+                # Add AI response to history
+                st.session_state.chat_history.append({
+                    'role': 'assistant', 
+                    'content': response,
+                    'citations': citations
+                })
+            except Exception as e:
+                st.session_state.chat_history.append({
+                    'role': 'assistant',
+                    'content': f"Sorry, an error occurred: {e}"
+                })
+        
+        # Rerun to update the display
+        st.rerun()
+
     # Check if chat is available
     if st.session_state.chat_instance is None:
         st.info("👈 Please analyze a project first to enable the AI Assistant")
@@ -1544,7 +1606,10 @@ with tab5:
                     st.write(message['content'])
                     if 'code' in message:
                         st.code(message['code'], language='python')
-            
+                    if 'citations' in message:
+                        with st.expander("📚 View Sources"):
+                            st.markdown(message['citations'], unsafe_allow_html=True)
+
             # Chat input
             user_input = st.chat_input("Ask about circular dependencies, refactoring patterns, or your specific cycles...")
             

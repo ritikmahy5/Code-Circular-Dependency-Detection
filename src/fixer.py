@@ -61,6 +61,35 @@ class AutoFixer:
     def __init__(self):
         self.llm = get_llm()
     
+    def _resolve_file_path(self, edge_from: str, project_path: Path) -> Optional[Path]:
+        """Resolve file path from edge data, trying multiple strategies."""
+        # Strategy 1: Direct path join
+        direct_path = project_path / edge_from
+        if direct_path.exists():
+            return direct_path
+        
+        # Strategy 2: edge_from might be absolute or have leading parts to strip
+        edge_path = Path(edge_from)
+        if edge_path.exists():
+            return edge_path
+        
+        # Strategy 3: Search for the file by name
+        file_name = edge_path.name
+        for found_file in project_path.rglob(file_name):
+            # Check if the path ends with what we're looking for
+            if str(found_file).endswith(edge_from) or edge_from.endswith(str(found_file.relative_to(project_path))):
+                return found_file
+        
+        # Strategy 4: Try matching just the last few path components
+        parts = edge_from.replace("\\", "/").split("/")
+        for i in range(len(parts)):
+            partial = "/".join(parts[i:])
+            for found_file in project_path.rglob(parts[-1]):
+                if str(found_file).replace("\\", "/").endswith(partial):
+                    return found_file
+        
+        return None
+    
     async def generate_fix(
         self, 
         cycle: CycleInfo, 
@@ -70,19 +99,37 @@ class AutoFixer:
         """Generate fixes for a cycle."""
         fixes = []
         
+        if not cycle.edge_details:
+            return fixes
+        
         for edge in cycle.edge_details:
-            file_path = project_path / edge['from']
-            if not file_path.exists():
+            edge_from = edge.get('from', '')
+            if not edge_from:
                 continue
             
-            content = file_path.read_text()
+            # Try to resolve the file path
+            file_path = self._resolve_file_path(edge_from, project_path)
+            
+            if file_path is None or not file_path.exists():
+                # Can't find file, skip this edge
+                continue
+            
+            try:
+                content = file_path.read_text(encoding='utf-8')
+            except Exception:
+                continue
+            
             line_num = edge.get('line', 0)
             
             # Get the import statement
             lines = content.splitlines()
-            if 0 < line_num <= len(lines):
-                import_stmt = lines[line_num - 1].strip()
-            else:
+            if not (0 < line_num <= len(lines)):
+                continue
+            
+            import_stmt = lines[line_num - 1].strip()
+            
+            # Skip if not an import statement
+            if not (import_stmt.startswith('import ') or import_stmt.startswith('from ')):
                 continue
             
             # Choose strategy based on import type
@@ -98,39 +145,44 @@ class AutoFixer:
             # Generate fix using LLM
             if actual_strategy == FixStrategy.LAZY_IMPORT:
                 prompt = LAZY_IMPORT_PROMPT.format(
-                    file_content=content,
+                    file_content=content[:5000],  # Limit content size
                     line_number=line_num,
                     import_statement=import_stmt
                 )
             elif actual_strategy == FixStrategy.TYPE_CHECKING:
                 prompt = TYPE_CHECKING_PROMPT.format(
-                    file_content=content,
+                    file_content=content[:5000],
                     line_number=line_num,
                     import_statement=import_stmt
                 )
             else:
                 continue
             
-            response = await self.llm.generate(prompt)
-            fixed_code = response.content.strip()
-            
-            # Clean up markdown code blocks if present
-            if fixed_code.startswith("```python"):
-                fixed_code = fixed_code[9:]
-            if fixed_code.startswith("```"):
-                fixed_code = fixed_code[3:]
-            if fixed_code.endswith("```"):
-                fixed_code = fixed_code[:-3]
-            
-            fixes.append(CodeFix(
-                file_path=str(file_path),
-                original_code=content,
-                fixed_code=fixed_code.strip(),
-                strategy=actual_strategy,
-                description=f"Convert `{import_stmt}` to {actual_strategy.value}",
-                line_start=line_num,
-                line_end=line_num
-            ))
+            try:
+                response = await self.llm.generate(prompt)
+                fixed_code = response.content.strip()
+                
+                # Clean up markdown code blocks if present
+                if fixed_code.startswith("```python"):
+                    fixed_code = fixed_code[9:]
+                if fixed_code.startswith("```"):
+                    fixed_code = fixed_code[3:]
+                if fixed_code.endswith("```"):
+                    fixed_code = fixed_code[:-3]
+                
+                fixes.append(CodeFix(
+                    file_path=str(file_path),
+                    original_code=content,
+                    fixed_code=fixed_code.strip(),
+                    strategy=actual_strategy,
+                    description=f"Convert `{import_stmt}` to {actual_strategy.value}",
+                    line_start=line_num,
+                    line_end=line_num
+                ))
+            except Exception as e:
+                # LLM call failed, skip this fix
+                print(f"LLM error generating fix: {e}")
+                continue
         
         return fixes
     

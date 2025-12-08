@@ -20,11 +20,20 @@ build/
 # Environment
 .env
 .env.local
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
 # Data
 *.db
 chroma_data/
 ollama_data/
+persistent_db/
+*.pkl
+*.bin
 
 # Reports
 reports/
@@ -35,6 +44,9 @@ reports/
 .pytest_cache/
 .coverage
 htmlcov/
+test_*.py
+*_test.py
+verify_*.py
 
 # OS
 .DS_Store

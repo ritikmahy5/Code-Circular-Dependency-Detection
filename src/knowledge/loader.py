@@ -58,6 +58,7 @@ class PatternLoader:
             common_causes=data.get('common_causes', []),
             pitfalls=data.get('pitfalls', []),
             keywords=data.get('keywords', []),
+            source_file=str(file_path),  # Track source for citations
         )
     
     def get_pattern(self, pattern_id: str) -> RefactoringPattern | None:

@@ -64,6 +64,9 @@ class RefactoringPattern:
     pitfalls: list[str] = field(default_factory=list)
     keywords: list[str] = field(default_factory=list)
     
+    # Source file for citations (added for proper RAG attribution)
+    source_file: Optional[str] = None
+    
     def to_embedding_text(self) -> str:
         """Generate text for embedding."""
         return f"""
@@ -138,4 +141,5 @@ Keywords: {', '.join(self.keywords)}
             "common_causes": self.common_causes,
             "pitfalls": self.pitfalls,
             "keywords": self.keywords,
+            "source_file": self.source_file,  # Include for citation tracking
         }
