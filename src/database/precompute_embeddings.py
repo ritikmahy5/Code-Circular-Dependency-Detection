@@ -39,19 +39,15 @@ def precompute_embeddings(db_path: Path = None, batch_size: int = None):
     
     logger.info(f"Loaded {len(chunks):,} chunks")
     
-    # Initialize embedding model (will auto-detect GPU)
-    logger.info("Initializing embedding model (GPU will be used if available)...")
+    # Initialize embedding model (GPU-only)
+    logger.info("Initializing embedding model (GPU required)...")
     from src.rag.embeddings import EmbeddingModel
-    encoder = EmbeddingModel(device="auto")
+    encoder = EmbeddingModel(device="cuda")  # GPU-only, no fallback
     
-    # Auto-optimize batch size for GPU
+    # Optimize batch size for GPU
     if batch_size is None:
-        if encoder.device == "cuda":
-            batch_size = 1000  # Large batches for GPU pre-computation
-            logger.info("🚀 Using GPU acceleration with batch size 1000")
-        else:
-            batch_size = 500   # Moderate batches for CPU
-            logger.info("💻 Using CPU with batch size 500")
+        batch_size = 1000  # Large batches for GPU pre-computation
+        logger.info("🚀 Using GPU acceleration with batch size 1000")
     
     # Compute embeddings in batches
     logger.info(f"Computing embeddings (batch size: {batch_size})...")

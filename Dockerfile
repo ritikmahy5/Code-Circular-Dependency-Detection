@@ -28,7 +28,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu121 \
     torch torchvision torchaudio
 
-# Install remaining requirements
+# Install remaining requirements (GPU-only, no fallback)
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code

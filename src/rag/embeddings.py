@@ -51,14 +51,15 @@ class EmbeddingModel:
                 pass
             return "cpu"
         
-        # Auto mode - try CUDA first if available, then fallback to CPU
+        # Auto mode - GPU-only: require CUDA, fail if not available
         try:
             import torch
             if torch.cuda.is_available():
                 return "cuda"
+            else:
+                raise RuntimeError("CUDA is not available. GPU is required for this deployment.")
         except ImportError:
-            pass
-        return "cpu"
+            raise RuntimeError("PyTorch is not installed. GPU support requires PyTorch with CUDA.")
     
     @property
     def model(self):
@@ -69,16 +70,12 @@ class EmbeddingModel:
                 
                 # Load model directly on target device for better performance
                 print(f"Loading embedding model: {self.model_name} on {self.device}...")
-                try:
-                    # Try loading directly on GPU if available
-                    self._model = SentenceTransformer(self.model_name, device=self.device)
-                    print(f"✅ Embedding model loaded on {self.device}")
-                except Exception as e:
-                    # Fallback to CPU if GPU loading fails
-                    print(f"⚠️ Could not load on {self.device}, falling back to CPU: {e}")
-                    self.device = "cpu"
-                    self._model = SentenceTransformer(self.model_name, device="cpu")
-                    print(f"✅ Embedding model loaded on CPU")
+                # GPU-only: load directly on GPU, fail if not available
+                if self.device != "cuda":
+                    raise RuntimeError(f"GPU (CUDA) is required, but device is set to {self.device}")
+                
+                self._model = SentenceTransformer(self.model_name, device="cuda")
+                print(f"✅ Embedding model loaded on CUDA (GPU)")
                     
             except Exception as e:
                 raise RuntimeError(f"Failed to load embedding model: {e}")

@@ -128,9 +128,8 @@ class DualKnowledgeRAG:
         load_persistent_db: bool = True,
         max_persistent_chunks: int = 0,  # 0 = load ALL chunks (42,660)
     ):
-        # Auto-detect GPU (CUDA) if available, fallback to CPU
-        # This enables GPU acceleration for embeddings when GPU is available
-        self.encoder = EmbeddingModel(device="auto")
+        # GPU-only: require CUDA, fail if not available
+        self.encoder = EmbeddingModel(device="cuda")
         self.persist_dir = persist_dir
         self.use_chroma = use_chroma
         self.max_persistent_chunks = max_persistent_chunks
