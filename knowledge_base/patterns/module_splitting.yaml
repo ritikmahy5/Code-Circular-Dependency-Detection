@@ -1,0 +1,137 @@
+pattern_id: module_splitting
+title: Split Large Module to Eliminate Internal Cycles
+anti_pattern: circular_dependency
+refactoring_strategy: split_module
+complexity: medium
+framework: generic
+
+problem_description: |
+  A large module has grown to contain classes that reference
+  each other. While not a cross-module cycle, the file is hard
+  to maintain and could be split into focused modules.
+
+symptoms:
+  - Single file with 1000+ lines
+  - Classes in same file reference each other
+  - Hard to find things in the file
+  - Multiple unrelated concerns in one module
+
+solution_description: |
+  Split the large module into smaller, focused modules. Use a
+  package with __init__.py to maintain backward compatibility
+  for imports.
+
+before_code: |
+  # models.py (1500 lines, everything in one file)
+  class User:
+      def __init__(self):
+          self.profile = Profile(self)
+          self.orders = []
+      
+      def add_order(self, order: 'Order'):
+          self.orders.append(order)
+  
+  class Profile:
+      def __init__(self, user: User):
+          self.user = user
+  
+  class Order:
+      def __init__(self, user: User):
+          self.user = user
+  
+  class OrderItem:
+      def __init__(self, order: Order):
+          self.order = order
+  
+  # ... hundreds more lines
+
+after_code: |
+  # models/ (package)
+  # models/__init__.py (backward compatible imports)
+  from .user import User
+  from .profile import Profile
+  from .order import Order, OrderItem
+  
+  __all__ = ['User', 'Profile', 'Order', 'OrderItem']
+  
+  # models/base.py (shared if needed)
+  class BaseModel:
+      pass
+  
+  # models/user.py
+  from typing import TYPE_CHECKING, List
+  from .base import BaseModel
+  
+  if TYPE_CHECKING:
+      from .profile import Profile
+      from .order import Order
+  
+  class User(BaseModel):
+      profile: 'Profile'
+      orders: List['Order']
+      
+      def __init__(self):
+          self.orders = []
+      
+      def add_order(self, order: 'Order'):
+          self.orders.append(order)
+  
+  # models/profile.py
+  from typing import TYPE_CHECKING
+  from .base import BaseModel
+  
+  if TYPE_CHECKING:
+      from .user import User
+  
+  class Profile(BaseModel):
+      def __init__(self, user: 'User'):
+          self.user = user
+  
+  # models/order.py
+  from typing import TYPE_CHECKING
+  from .base import BaseModel
+  
+  if TYPE_CHECKING:
+      from .user import User
+  
+  class Order(BaseModel):
+      def __init__(self, user: 'User'):
+          self.user = user
+  
+  class OrderItem(BaseModel):
+      def __init__(self, order: Order):
+          self.order = order
+
+step_by_step:
+  - Identify logical groupings in the large module
+  - Create package directory with same name
+  - Move groups to separate files
+  - Use TYPE_CHECKING for cross-references
+  - Create __init__.py with all exports
+  - Test that existing imports still work
+  - Update any broken imports
+
+naming_convention:
+  - One main class per file
+  - File named after class (lowercase)
+  - Group related small classes together
+  - Use __init__.py for public API
+
+when_to_use:
+  - Module > 500 lines
+  - Multiple unrelated classes
+  - Hard to navigate
+  - Team often has merge conflicts
+
+when_not_to_use:
+  - Small, cohesive module
+  - Classes are tightly related
+  - Splitting adds unnecessary complexity
+
+keywords:
+  - split module
+  - extract module
+  - package conversion
+  - large file
+  - code organization
+  - file structure

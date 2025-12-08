@@ -1,0 +1,92 @@
+pattern_id: protocol_interface
+title: Use Python Protocol for Type Decoupling
+anti_pattern: circular_dependency
+refactoring_strategy: protocol
+complexity: medium
+framework: python3.8+
+
+problem_description: |
+  Module A needs to type-hint a class from Module B, causing an import.
+  Module B also imports from Module A. The circular dependency exists
+  only for type checking purposes, not runtime behavior.
+
+symptoms:
+  - Import needed only for type hints
+  - Using TYPE_CHECKING but want better solution
+  - Want duck typing with type safety
+  - Interfaces would help but Python lacks them
+
+solution_description: |
+  Use Python's Protocol (PEP 544) to define a structural interface.
+  The protocol defines what methods/attributes are needed without
+  importing the actual implementation. This enables duck typing
+  with full type checker support.
+
+before_code: |
+  # repository.py
+  from models import User  # Circular for type hint!
+  
+  class UserRepository:
+      def get(self, id: int) -> User:
+          return self._db.query(User).get(id)
+  
+  # models.py
+  from repository import UserRepository  # Circular!
+  
+  class User:
+      def __init__(self, repo: UserRepository):
+          self.repo = repo
+
+after_code: |
+  # protocols.py (new shared module)
+  from typing import Protocol
+  
+  class UserLike(Protocol):
+      id: int
+      name: str
+  
+  class RepositoryLike(Protocol):
+      def get(self, id: int) -> UserLike: ...
+      def save(self, entity: UserLike) -> None: ...
+  
+  # repository.py
+  from protocols import UserLike, RepositoryLike
+  
+  class UserRepository:  # Implicitly implements RepositoryLike
+      def get(self, id: int) -> UserLike:
+          return self._db.query(id)
+  
+  # models.py
+  from protocols import RepositoryLike
+  
+  class User:  # Implicitly implements UserLike
+      def __init__(self, repo: RepositoryLike):
+          self.repo = repo
+
+step_by_step:
+  - Identify types causing circular imports
+  - Create a protocols.py module
+  - Define Protocol classes with required methods/attributes
+  - Replace concrete type imports with protocol imports
+  - Remove circular dependencies
+  - Verify type checker still catches errors
+
+when_to_use:
+  - Circular imports are for type hints only
+  - Want structural typing (duck typing with types)
+  - Multiple implementations might exist
+  - Building a plugin system
+
+when_not_to_use:
+  - Need isinstance() checks (use ABC instead)
+  - Python < 3.8 (Protocol not available)
+  - Simple cases where TYPE_CHECKING suffices
+
+keywords:
+  - protocol
+  - structural typing
+  - duck typing
+  - PEP 544
+  - interface
+  - type hints
+  - typing module

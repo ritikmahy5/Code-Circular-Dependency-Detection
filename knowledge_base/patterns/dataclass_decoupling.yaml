@@ -1,0 +1,134 @@
+pattern_id: dataclass_decoupling
+title: Use Dataclasses to Decouple Data from Behavior
+anti_pattern: circular_dependency
+refactoring_strategy: dataclass
+complexity: medium
+framework: python3.7+
+
+problem_description: |
+  Classes mix data and behavior, requiring imports for both.
+  Data transfer objects (DTOs) could be simple dataclasses
+  without behavioral dependencies.
+
+symptoms:
+  - Classes with mostly data attributes
+  - Methods could be functions
+  - Imports needed just for data structures
+  - Heavy objects passed around for simple data
+
+solution_description: |
+  Extract pure data into dataclasses (or NamedTuples). Keep
+  behavior in service classes that operate on the data. Data
+  classes have no dependencies.
+
+before_code: |
+  # user.py
+  from database import Database  # Circular!
+  from email_service import EmailService
+  
+  class User:
+      def __init__(self, id, name, email):
+          self.id = id
+          self.name = name
+          self.email = email
+          self.db = Database()
+          self.email_svc = EmailService()
+      
+      def save(self):
+          self.db.save(self)
+      
+      def send_welcome(self):
+          self.email_svc.send(self.email, "Welcome!")
+  
+  # database.py
+  from user import User  # Circular!
+  
+  class Database:
+      def get_user(self, id) -> User:
+          data = self.query(id)
+          return User(**data)
+
+after_code: |
+  # models/user.py (pure data, no imports)
+  from dataclasses import dataclass
+  from typing import Optional
+  from datetime import datetime
+  
+  @dataclass
+  class User:
+      id: int
+      name: str
+      email: str
+      created_at: Optional[datetime] = None
+  
+  @dataclass
+  class UserCreate:
+      """DTO for creating a user."""
+      name: str
+      email: str
+  
+  @dataclass
+  class UserUpdate:
+      """DTO for updating a user."""
+      name: Optional[str] = None
+      email: Optional[str] = None
+  
+  # services/user_service.py (behavior)
+  from models.user import User, UserCreate
+  from database import Database
+  from email_service import EmailService
+  
+  class UserService:
+      def __init__(self, db: Database, email: EmailService):
+          self.db = db
+          self.email = email
+      
+      def create(self, data: UserCreate) -> User:
+          user = self.db.create_user(data)
+          self.email.send(user.email, "Welcome!")
+          return user
+      
+      def get(self, id: int) -> User:
+          return self.db.get_user(id)
+  
+  # database.py (no user import needed, just dataclass)
+  from models.user import User
+  
+  class Database:
+      def get_user(self, id: int) -> User:
+          data = self.query(id)
+          return User(**data)
+
+step_by_step:
+  - Identify classes that are mostly data
+  - Create dataclass for pure data
+  - Create separate DTOs for create/update if needed
+  - Move behavior to service classes
+  - Update references to use dataclass
+  - Services get dependencies via injection
+
+dataclass_features:
+  - @dataclass decorator
+  - Automatic __init__, __repr__, __eq__
+  - Default values with field()
+  - frozen=True for immutability
+  - slots=True for memory efficiency (3.10+)
+
+when_to_use:
+  - Classes are mostly data containers
+  - Behavior doesn't belong on data object
+  - Need DTOs for API boundaries
+  - Want immutable data objects
+
+when_not_to_use:
+  - Behavior is core to the class
+  - ORM models with active record pattern
+  - Complex initialization logic needed
+
+keywords:
+  - dataclass
+  - DTO
+  - data transfer object
+  - anemic model
+  - value object
+  - separation of concerns

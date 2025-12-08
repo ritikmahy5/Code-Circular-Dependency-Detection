@@ -1,0 +1,99 @@
+pattern_id: module_getattr
+title: Use Module-Level __getattr__ for Lazy Loading
+anti_pattern: circular_dependency
+refactoring_strategy: module_getattr
+complexity: medium
+framework: python3.7+
+
+problem_description: |
+  A module exports many names that cause circular imports when
+  loaded eagerly. Python 3.7+ allows module-level __getattr__
+  to defer loading until actually accessed.
+
+symptoms:
+  - Module has many exports
+  - Not all exports used by every importer
+  - Circular imports during module initialization
+  - Want to maintain clean public API
+
+solution_description: |
+  Use PEP 562's module-level __getattr__ to lazily import and
+  return attributes only when they're accessed. This defers
+  circular imports until the attribute is actually needed.
+
+before_code: |
+  # mypackage/__init__.py
+  from .models import User, Order, Product  # Circular!
+  from .services import UserService, OrderService
+  from .utils import helper, formatter
+  
+  __all__ = ['User', 'Order', 'Product', 'UserService', 
+             'OrderService', 'helper', 'formatter']
+  
+  # All imports happen at package load time
+  # Even if consumer only needs 'helper'
+
+after_code: |
+  # mypackage/__init__.py
+  __all__ = ['User', 'Order', 'Product', 'UserService',
+             'OrderService', 'helper', 'formatter']
+  
+  def __getattr__(name):
+      """Lazy loading of package contents."""
+      if name in ('User', 'Order', 'Product'):
+          from .models import User, Order, Product
+          globals().update({
+              'User': User, 
+              'Order': Order, 
+              'Product': Product
+          })
+          return globals()[name]
+      
+      if name in ('UserService', 'OrderService'):
+          from .services import UserService, OrderService
+          globals().update({
+              'UserService': UserService,
+              'OrderService': OrderService
+          })
+          return globals()[name]
+      
+      if name in ('helper', 'formatter'):
+          from .utils import helper, formatter
+          globals().update({
+              'helper': helper,
+              'formatter': formatter
+          })
+          return globals()[name]
+      
+      raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+  
+  def __dir__():
+      """Support dir() for discoverability."""
+      return __all__
+
+step_by_step:
+  - Remove eager imports from __init__.py
+  - Define __getattr__(name) function at module level
+  - Import and cache attributes on first access
+  - Update globals() to avoid repeated imports
+  - Define __dir__() for IDE support
+  - Keep __all__ for documentation
+
+when_to_use:
+  - Package with many submodules
+  - Not all exports needed by every consumer
+  - Want to speed up import time
+  - Breaking cycles in __init__.py
+
+when_not_to_use:
+  - Python < 3.7
+  - All exports always needed
+  - Adds complexity for simple cases
+
+keywords:
+  - __getattr__
+  - PEP 562
+  - lazy loading
+  - module attribute
+  - deferred import
+  - package init

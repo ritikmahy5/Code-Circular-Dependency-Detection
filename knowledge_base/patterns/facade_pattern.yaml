@@ -1,0 +1,95 @@
+pattern_id: facade_pattern
+title: Use Facade to Hide Complex Dependencies
+anti_pattern: circular_dependency
+refactoring_strategy: facade
+complexity: medium
+framework: generic
+
+problem_description: |
+  Multiple modules have complex interdependencies that create
+  circular imports. External code needs to use these modules
+  but gets tangled in their internal complexity.
+
+symptoms:
+  - Complex web of internal imports
+  - External code imports from multiple internal modules
+  - Internal restructuring breaks external code
+  - Hard to understand module relationships
+
+solution_description: |
+  Create a facade module that provides a simplified interface
+  to the complex subsystem. External code only imports from
+  the facade. Internal modules can have circular dependencies
+  that are hidden behind the facade.
+
+before_code: |
+  # External code has to know internal structure
+  from subsystem.parser import Parser
+  from subsystem.validator import Validator  
+  from subsystem.transformer import Transformer
+  from subsystem.output import OutputWriter
+  
+  # And these have circular deps among themselves!
+  def process(data):
+      p = Parser()
+      v = Validator(p)  # Validator needs Parser
+      t = Transformer(v)  # Transformer needs Validator
+      w = OutputWriter(t)  # Writer needs Transformer
+      return w.write(p.parse(data))
+
+after_code: |
+  # subsystem/facade.py (new)
+  class SubsystemFacade:
+      """Simplified interface to the subsystem."""
+      
+      def __init__(self):
+          # Lazy imports hide internal complexity
+          from .parser import Parser
+          from .validator import Validator
+          from .transformer import Transformer
+          from .output import OutputWriter
+          
+          self._parser = Parser()
+          self._validator = Validator(self._parser)
+          self._transformer = Transformer(self._validator)
+          self._writer = OutputWriter(self._transformer)
+      
+      def process(self, data):
+          """Single method to do everything."""
+          parsed = self._parser.parse(data)
+          validated = self._validator.validate(parsed)
+          transformed = self._transformer.transform(validated)
+          return self._writer.write(transformed)
+  
+  # External code (simple!)
+  from subsystem.facade import SubsystemFacade
+  
+  facade = SubsystemFacade()
+  result = facade.process(data)
+
+step_by_step:
+  - Identify the subsystem with complex dependencies
+  - Create a facade class with high-level methods
+  - Use lazy imports inside facade to avoid cycles
+  - Expose only what external code needs
+  - Update external code to use facade
+  - Internal modules can remain unchanged
+
+when_to_use:
+  - Complex subsystem with many internal dependencies
+  - Want to provide simple API to external code
+  - Need to hide internal restructuring
+  - Building a library or framework
+
+when_not_to_use:
+  - Simple module structure
+  - External code needs fine-grained control
+  - Facade would be too limiting
+
+keywords:
+  - facade
+  - simplified interface
+  - subsystem
+  - API design
+  - encapsulation
+  - information hiding

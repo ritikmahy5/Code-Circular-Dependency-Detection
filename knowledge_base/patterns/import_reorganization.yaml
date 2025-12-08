@@ -1,0 +1,86 @@
+pattern_id: import_reorganization
+title: Reorganize Import Order to Break Cycle
+anti_pattern: circular_dependency
+refactoring_strategy: import_reorganization
+complexity: low
+framework: generic
+
+problem_description: |
+  Two modules have a circular dependency, but the import in one
+  of them is only used after module initialization is complete.
+  Moving the import to the bottom of the file can break the cycle.
+
+symptoms:
+  - ImportError only happens sometimes
+  - Import order affects whether error occurs
+  - Imported item used only in functions, not at module level
+  - Quick fix needed without restructuring
+
+solution_description: |
+  Move the problematic import to the bottom of the module, after
+  all class and function definitions. This allows the module to
+  fully initialize before the circular import is resolved.
+
+before_code: |
+  # a.py
+  from b import B  # Fails! b.py needs A but A isn't defined yet
+  
+  class A:
+      def method(self):
+          return B()
+  
+  # b.py
+  from a import A
+  
+  class B:
+      def method(self):
+          return A()
+
+after_code: |
+  # a.py
+  class A:
+      def method(self):
+          return B()
+  
+  # Import at bottom - A is now fully defined
+  from b import B
+  
+  # b.py
+  class B:
+      def method(self):
+          return A()
+  
+  # Import at bottom - B is now fully defined
+  from a import A
+
+step_by_step:
+  - Identify which module should have import moved
+  - Ensure the import is only used in functions (not class bodies)
+  - Move import statement to bottom of file
+  - Test that both modules can be imported
+  - Document why import is at bottom (add comment)
+
+when_to_use:
+  - Quick fix needed
+  - Import only used inside functions
+  - Don't want to restructure code
+  - Temporary solution while planning refactor
+
+when_not_to_use:
+  - Import needed at module level
+  - Used in class inheritance
+  - Used in decorators
+  - Better solution is available
+
+trade_offs:
+  - Unconventional import location
+  - Can confuse other developers
+  - May break if code is reorganized
+  - IDE may not recognize the import
+
+keywords:
+  - import order
+  - bottom import
+  - deferred import
+  - module initialization
+  - import reorganization

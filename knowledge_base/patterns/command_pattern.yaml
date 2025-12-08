@@ -1,0 +1,132 @@
+pattern_id: command_pattern
+title: Use Command Pattern to Decouple Invoker from Receiver
+anti_pattern: circular_dependency
+refactoring_strategy: command
+complexity: medium
+framework: generic
+
+problem_description: |
+  The invoker (e.g., UI, API handler) directly imports and calls
+  methods on receivers (services, models). This creates tight
+  coupling and potential circular dependencies.
+
+symptoms:
+  - Handler directly imports many services
+  - Hard to add new operations without modifying handler
+  - Operations not reusable
+  - Circular imports between handlers and services
+
+solution_description: |
+  Encapsulate each operation as a command object. The invoker
+  only knows about the command interface. Commands know their
+  receivers. This decouples who requests from who performs.
+
+before_code: |
+  # api_handler.py
+  from user_service import UserService  # Circular!
+  from order_service import OrderService
+  from email_service import EmailService
+  
+  class APIHandler:
+      def __init__(self):
+          self.users = UserService()
+          self.orders = OrderService()
+          self.email = EmailService()
+      
+      def handle(self, action, data):
+          if action == 'create_user':
+              user = self.users.create(data)
+              self.email.send_welcome(user)
+              return user
+          elif action == 'create_order':
+              order = self.orders.create(data)
+              self.email.send_confirmation(order)
+              return order
+
+after_code: |
+  # commands/base.py
+  from abc import ABC, abstractmethod
+  
+  class Command(ABC):
+      @abstractmethod
+      def execute(self) -> any:
+          pass
+  
+  # commands/create_user.py
+  from commands.base import Command
+  from user_service import UserService
+  from email_service import EmailService
+  
+  class CreateUserCommand(Command):
+      def __init__(self, data: dict, user_svc: UserService, 
+                   email_svc: EmailService):
+          self.data = data
+          self.user_svc = user_svc
+          self.email_svc = email_svc
+      
+      def execute(self):
+          user = self.user_svc.create(self.data)
+          self.email_svc.send_welcome(user)
+          return user
+  
+  # commands/create_order.py
+  from commands.base import Command
+  
+  class CreateOrderCommand(Command):
+      def __init__(self, data: dict, order_svc, email_svc):
+          self.data = data
+          self.order_svc = order_svc
+          self.email_svc = email_svc
+      
+      def execute(self):
+          order = self.order_svc.create(self.data)
+          self.email_svc.send_confirmation(order)
+          return order
+  
+  # api_handler.py (only knows Command)
+  from commands.base import Command
+  
+  class APIHandler:
+      def handle(self, command: Command):
+          return command.execute()
+  
+  # main.py (wire up)
+  from api_handler import APIHandler
+  from commands.create_user import CreateUserCommand
+  
+  handler = APIHandler()
+  cmd = CreateUserCommand(data, user_svc, email_svc)
+  result = handler.handle(cmd)
+
+step_by_step:
+  - Create Command base class/interface
+  - Create concrete command for each operation
+  - Commands receive their dependencies via constructor
+  - Handler only accepts Command interface
+  - Build commands with proper dependencies at call site
+  - Execute commands through handler
+
+benefits:
+  - Decouples invoker from receiver
+  - Operations are self-contained
+  - Easy to add undo/redo
+  - Commands can be queued, logged, retried
+
+when_to_use:
+  - Multiple operations with similar structure
+  - Need to queue, log, or undo operations
+  - Want to decouple API from implementation
+  - Building CQRS architecture
+
+when_not_to_use:
+  - Simple direct calls are clearer
+  - Only a few operations
+  - Adds too much boilerplate
+
+keywords:
+  - command pattern
+  - encapsulate operation
+  - CQRS
+  - action
+  - transaction
+  - behavioral pattern

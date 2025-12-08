@@ -1,0 +1,152 @@
+pattern_id: repository_pattern
+title: Use Repository Pattern to Isolate Data Access
+anti_pattern: tight_coupling
+refactoring_strategy: repository
+complexity: medium
+framework: generic
+
+problem_description: |
+  Domain models directly import database modules, and database
+  code imports models. This creates circular dependencies and
+  couples business logic to data access details.
+
+symptoms:
+  - Models import database code
+  - Database code imports models
+  - Business logic mixed with SQL
+  - Hard to test without database
+  - Can't swap database implementations
+
+solution_description: |
+  Create a repository layer that handles all data access. Domain
+  models don't know about persistence. Repositories return domain
+  objects but hide how they're stored.
+
+before_code: |
+  # models/user.py
+  from database import db  # Circular!
+  
+  class User:
+      def __init__(self, id, name, email):
+          self.id = id
+          self.name = name
+          self.email = email
+      
+      def save(self):
+          db.execute("INSERT INTO users ...", self.__dict__)
+      
+      @classmethod
+      def find(cls, id):
+          row = db.query("SELECT * FROM users WHERE id = ?", id)
+          return cls(**row)
+  
+  # database.py
+  from models.user import User  # Circular!
+  
+  class Database:
+      def get_all_users(self):
+          rows = self.query("SELECT * FROM users")
+          return [User(**r) for r in rows]
+
+after_code: |
+  # models/user.py (pure domain model, no imports)
+  from dataclasses import dataclass
+  
+  @dataclass
+  class User:
+      id: int
+      name: str
+      email: str
+      
+      def change_email(self, new_email: str):
+          # Business logic only
+          if not '@' in new_email:
+              raise ValueError("Invalid email")
+          self.email = new_email
+  
+  # repositories/base.py
+  from abc import ABC, abstractmethod
+  from typing import TypeVar, Generic, Optional, List
+  
+  T = TypeVar('T')
+  
+  class Repository(ABC, Generic[T]):
+      @abstractmethod
+      def get(self, id: int) -> Optional[T]: ...
+      
+      @abstractmethod
+      def save(self, entity: T) -> T: ...
+      
+      @abstractmethod
+      def delete(self, id: int) -> None: ...
+  
+  # repositories/user_repository.py
+  from repositories.base import Repository
+  from models.user import User
+  from database import db
+  
+  class UserRepository(Repository[User]):
+      def get(self, id: int) -> Optional[User]:
+          row = db.query("SELECT * FROM users WHERE id = ?", id)
+          return User(**row) if row else None
+      
+      def save(self, user: User) -> User:
+          if user.id is None:
+              db.execute("INSERT INTO users ...", user.__dict__)
+          else:
+              db.execute("UPDATE users ...", user.__dict__)
+          return user
+      
+      def delete(self, id: int) -> None:
+          db.execute("DELETE FROM users WHERE id = ?", id)
+      
+      def find_by_email(self, email: str) -> Optional[User]:
+          row = db.query("SELECT * FROM users WHERE email = ?", email)
+          return User(**row) if row else None
+  
+  # services/user_service.py
+  from repositories.user_repository import UserRepository
+  from models.user import User
+  
+  class UserService:
+      def __init__(self, repo: UserRepository):
+          self.repo = repo
+      
+      def change_user_email(self, user_id: int, new_email: str):
+          user = self.repo.get(user_id)
+          user.change_email(new_email)  # Business logic
+          return self.repo.save(user)   # Persistence
+
+step_by_step:
+  - Remove persistence code from domain models
+  - Create repository interface (ABC)
+  - Implement concrete repository with data access
+  - Domain models become pure data + business logic
+  - Services use repositories for persistence
+  - Inject repositories into services
+
+benefits:
+  - Domain models are pure and testable
+  - Easy to swap database implementations
+  - Clear separation of concerns
+  - Can mock repositories for testing
+
+when_to_use:
+  - Complex domain logic
+  - Need database independence
+  - Want testable business logic
+  - Following DDD or clean architecture
+
+when_not_to_use:
+  - Simple CRUD applications
+  - Active Record pattern is preferred
+  - Adds too much abstraction
+
+keywords:
+  - repository
+  - data access
+  - persistence
+  - DDD
+  - clean architecture
+  - domain model
+  - abstraction layer

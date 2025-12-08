@@ -1,0 +1,111 @@
+pattern_id: weakref_cycle
+title: Use WeakRef to Break Reference Cycles
+anti_pattern: circular_dependency
+refactoring_strategy: weakref
+complexity: low
+framework: generic
+
+problem_description: |
+  Two objects hold strong references to each other, preventing
+  garbage collection and creating logical circular dependencies.
+  This is a runtime reference cycle, not an import cycle.
+
+symptoms:
+  - Memory leaks from uncollected objects
+  - Parent-child relationships with back-references
+  - Observer pattern with circular references
+  - Cache holding references to cached objects
+
+solution_description: |
+  Use Python's weakref module to create weak references that
+  don't prevent garbage collection. The weak reference allows
+  access to the object but doesn't keep it alive.
+
+before_code: |
+  # Strong circular reference - memory leak!
+  class Parent:
+      def __init__(self):
+          self.children = []
+      
+      def add_child(self, child):
+          self.children.append(child)
+          child.parent = self  # Strong reference back
+  
+  class Child:
+      def __init__(self):
+          self.parent = None  # Will be strong reference
+  
+  # Neither can be garbage collected!
+  p = Parent()
+  c = Child()
+  p.add_child(c)
+  del p, c  # Memory leak - still referenced
+
+after_code: |
+  import weakref
+  
+  class Parent:
+      def __init__(self):
+          self.children = []
+      
+      def add_child(self, child):
+          self.children.append(child)
+          child.parent = weakref.ref(self)  # Weak reference!
+  
+  class Child:
+      def __init__(self):
+          self._parent_ref = None
+      
+      @property
+      def parent(self):
+          if self._parent_ref is not None:
+              return self._parent_ref()  # Call ref to get object
+          return None
+      
+      @parent.setter
+      def parent(self, value):
+          if value is not None:
+              self._parent_ref = weakref.ref(value)
+          else:
+              self._parent_ref = None
+  
+  # Now garbage collection works!
+  p = Parent()
+  c = Child()
+  p.add_child(c)
+  del p  # Parent can be collected
+  print(c.parent)  # None - parent was collected
+
+step_by_step:
+  - Identify circular references between objects
+  - Decide which direction should be weak
+  - Replace strong reference with weakref.ref()
+  - Add property to safely access weak reference
+  - Handle case where referenced object is collected
+  - Test garbage collection works correctly
+
+weakref_tools:
+  - weakref.ref(obj) - Create weak reference
+  - weakref.proxy(obj) - Create proxy that acts like obj
+  - weakref.WeakValueDictionary - Dict with weak values
+  - weakref.WeakKeyDictionary - Dict with weak keys
+  - weakref.WeakSet - Set with weak references
+
+when_to_use:
+  - Parent-child with back-references
+  - Caches that shouldn't prevent collection
+  - Observer/callback patterns
+  - Any bidirectional object graph
+
+when_not_to_use:
+  - Referenced object must stay alive
+  - Immutable objects (can't weakref int, str, tuple)
+  - Simple cases without memory concerns
+
+keywords:
+  - weakref
+  - weak reference
+  - garbage collection
+  - memory leak
+  - circular reference
+  - reference cycle

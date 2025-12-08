@@ -1,0 +1,78 @@
+pattern_id: merge_modules
+title: Merge Tightly Coupled Modules
+anti_pattern: circular_dependency
+refactoring_strategy: merge_modules
+complexity: medium
+framework: generic
+
+problem_description: |
+  Two or more modules are so tightly coupled that they constantly 
+  import from each other. Every change in one requires changes in 
+  the other. They are effectively one logical unit split artificially.
+
+symptoms:
+  - Bidirectional imports between modules
+  - Changes in one module always require changes in the other
+  - Modules share many internal details
+  - Difficult to understand one without the other
+  - High coupling, low cohesion when separated
+
+solution_description: |
+  Merge the tightly coupled modules into a single module. This 
+  acknowledges the reality that they are one logical unit and 
+  eliminates the artificial boundary causing the circular dependency.
+
+before_code: |
+  # user.py
+  from profile import Profile
+  
+  class User:
+      def __init__(self, name):
+          self.name = name
+          self.profile = Profile(self)
+  
+  # profile.py
+  from user import User  # Circular!
+  
+  class Profile:
+      def __init__(self, user: User):
+          self.user = user
+          self.bio = ""
+
+after_code: |
+  # user.py (merged)
+  class Profile:
+      def __init__(self, user: 'User'):
+          self.user = user
+          self.bio = ""
+  
+  class User:
+      def __init__(self, name):
+          self.name = name
+          self.profile = Profile(self)
+
+step_by_step:
+  - Identify modules that are tightly coupled
+  - Determine which module should absorb the other
+  - Move all classes/functions to the target module
+  - Update all imports throughout the codebase
+  - Delete the now-empty module
+  - Run tests to verify behavior
+
+when_to_use:
+  - Modules are conceptually one unit
+  - Bidirectional dependencies are inherent to the design
+  - Separation provides no benefit
+  - Both modules are small enough to merge
+
+when_not_to_use:
+  - Modules have distinct responsibilities
+  - Merging would create a "god module"
+  - Modules are used independently elsewhere
+
+keywords:
+  - merge modules
+  - combine files
+  - consolidate
+  - tight coupling
+  - bidirectional dependency

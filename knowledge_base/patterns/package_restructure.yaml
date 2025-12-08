@@ -1,0 +1,119 @@
+pattern_id: package_restructure
+title: Restructure Package to Eliminate Cycles
+anti_pattern: circular_dependency
+refactoring_strategy: restructure
+complexity: high
+framework: generic
+
+problem_description: |
+  The package structure itself causes circular dependencies.
+  Modules are organized by technical layer (models, views, utils)
+  instead of by feature, causing cross-cutting imports.
+
+symptoms:
+  - Many __init__.py files with circular imports
+  - Modules organized by type, not feature
+  - Changes require touching many packages
+  - Import errors when adding new features
+
+solution_description: |
+  Restructure the package to organize by feature/domain instead
+  of by technical layer. Each feature package is self-contained
+  with its own models, services, and utilities.
+
+before_code: |
+  # Layered structure (causes cycles)
+  myapp/
+  ├── models/
+  │   ├── __init__.py
+  │   ├── user.py      # imports from services.auth
+  │   └── order.py     # imports from services.order
+  ├── services/
+  │   ├── __init__.py
+  │   ├── auth.py      # imports from models.user (circular!)
+  │   └── order.py     # imports from models.order (circular!)
+  └── utils/
+      └── helpers.py   # imported by everyone
+  
+  # models/user.py
+  from services.auth import hash_password  # Circular!
+  
+  class User:
+      def set_password(self, pwd):
+          self.password = hash_password(pwd)
+  
+  # services/auth.py
+  from models.user import User  # Circular!
+  
+  def hash_password(pwd):
+      return pwd.encode()
+
+after_code: |
+  # Feature-based structure (no cycles)
+  myapp/
+  ├── users/              # User feature package
+  │   ├── __init__.py
+  │   ├── models.py       # User model
+  │   ├── services.py     # User services
+  │   └── utils.py        # User-specific utilities
+  ├── orders/             # Order feature package
+  │   ├── __init__.py
+  │   ├── models.py
+  │   ├── services.py
+  │   └── utils.py
+  └── shared/             # Truly shared code
+      ├── __init__.py
+      └── crypto.py       # Shared crypto utilities
+  
+  # users/models.py
+  from myapp.shared.crypto import hash_password
+  
+  class User:
+      def set_password(self, pwd):
+          self.password = hash_password(pwd)
+  
+  # users/services.py
+  from .models import User  # Local import, no cycle
+  
+  def create_user(email, password):
+      user = User(email)
+      user.set_password(password)
+      return user
+  
+  # shared/crypto.py (no dependencies on features)
+  def hash_password(pwd):
+      return pwd.encode()
+
+step_by_step:
+  - Map out current dependencies
+  - Identify feature boundaries
+  - Create new package structure
+  - Move code to feature packages
+  - Extract truly shared code to shared/
+  - Update all imports
+  - Test thoroughly
+
+principles:
+  - Features should be vertical slices
+  - Shared code should have no feature dependencies
+  - Imports should flow downward (features → shared)
+  - Minimize cross-feature imports
+
+when_to_use:
+  - Persistent circular dependency problems
+  - Planning major refactoring anyway
+  - Team struggling with import issues
+  - Growing codebase needs better organization
+
+when_not_to_use:
+  - Small project with few modules
+  - Circular deps can be fixed simply
+  - Team prefers layered architecture
+
+keywords:
+  - package structure
+  - restructure
+  - vertical slice
+  - feature package
+  - domain driven
+  - modular architecture

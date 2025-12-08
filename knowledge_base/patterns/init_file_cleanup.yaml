@@ -1,0 +1,108 @@
+pattern_id: init_file_cleanup
+title: Clean Up __init__.py to Prevent Cycles
+anti_pattern: circular_dependency
+refactoring_strategy: init_cleanup
+complexity: low
+framework: generic
+
+problem_description: |
+  Package __init__.py imports everything for convenience, but
+  this causes all modules to load immediately, triggering
+  circular imports that wouldn't occur with direct imports.
+
+symptoms:
+  - Importing package causes many sub-imports
+  - Circular imports only happen via __init__.py
+  - Direct imports work fine
+  - Slow package import time
+
+solution_description: |
+  Reduce or remove imports from __init__.py. Users import
+  directly from submodules. Use lazy loading or keep only
+  essential public API in __init__.py.
+
+before_code: |
+  # mypackage/__init__.py (imports everything)
+  from .models import User, Order, Product, Category
+  from .services import UserService, OrderService, ProductService
+  from .utils import helper, formatter, validator
+  from .database import Database, Connection
+  from .cache import Cache, RedisCache
+  
+  # This causes ALL modules to load when you do:
+  # from mypackage import helper  # Loads everything!
+  
+  # If models imports services and services imports models,
+  # you get circular import through __init__.py
+
+after_code: |
+  # Option 1: Empty __init__.py
+  # mypackage/__init__.py
+  """MyPackage - import from submodules directly."""
+  
+  # Usage:
+  # from mypackage.models import User
+  # from mypackage.utils import helper
+  
+  # ---
+  
+  # Option 2: Minimal public API
+  # mypackage/__init__.py
+  """MyPackage - only essential public API."""
+  
+  # Only expose what external users need
+  from .models import User, Order
+  from .services import UserService
+  
+  __all__ = ['User', 'Order', 'UserService']
+  
+  # Internal modules imported directly:
+  # from mypackage.utils import helper
+  
+  # ---
+  
+  # Option 3: Lazy loading (Python 3.7+)
+  # mypackage/__init__.py
+  __all__ = ['User', 'Order', 'UserService', 'helper']
+  
+  def __getattr__(name):
+      if name == 'User':
+          from .models import User
+          return User
+      if name == 'Order':
+          from .models import Order
+          return Order
+      if name == 'UserService':
+          from .services import UserService
+          return UserService
+      if name == 'helper':
+          from .utils import helper
+          return helper
+      raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+step_by_step:
+  - Identify what's in __init__.py
+  - Determine what's truly public API
+  - Remove internal/utility imports
+  - Update code to import directly from submodules
+  - Consider lazy loading for large packages
+  - Document the import style
+
+when_to_use:
+  - __init__.py causes circular imports
+  - Package is slow to import
+  - Most imports not needed by every user
+  - Want explicit imports for clarity
+
+when_not_to_use:
+  - Small package with few modules
+  - Convenience imports are important
+  - Backward compatibility required
+
+keywords:
+  - __init__.py
+  - package init
+  - import cleanup
+  - lazy loading
+  - public API
+  - module organization

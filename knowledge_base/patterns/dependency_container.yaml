@@ -1,0 +1,143 @@
+pattern_id: dependency_container
+title: Use Dependency Injection Container
+anti_pattern: circular_dependency
+refactoring_strategy: di_container
+complexity: high
+framework: generic
+
+problem_description: |
+  Application has many interdependent services that create
+  complex circular import chains. Manual dependency injection
+  becomes unwieldy with many dependencies.
+
+symptoms:
+  - Many constructor parameters for dependencies
+  - Complex initialization order
+  - Circular dependencies between services
+  - Hard to test with many mocks needed
+
+solution_description: |
+  Use a dependency injection container that manages service
+  lifecycle and resolves dependencies automatically. Services
+  declare what they need, container provides it.
+
+before_code: |
+  # services have circular imports
+  # user_service.py
+  from order_service import OrderService  # Circular!
+  from email_service import EmailService
+  
+  class UserService:
+      def __init__(self):
+          self.orders = OrderService()
+          self.email = EmailService()
+  
+  # order_service.py
+  from user_service import UserService  # Circular!
+  
+  class OrderService:
+      def __init__(self):
+          self.users = UserService()
+
+after_code: |
+  # container.py
+  from typing import Type, TypeVar, Callable, Dict, Any
+  
+  T = TypeVar('T')
+  
+  class Container:
+      def __init__(self):
+          self._factories: Dict[Type, Callable] = {}
+          self._singletons: Dict[Type, Any] = {}
+      
+      def register(self, cls: Type[T], factory: Callable[['Container'], T], 
+                   singleton: bool = True):
+          self._factories[cls] = (factory, singleton)
+      
+      def resolve(self, cls: Type[T]) -> T:
+          if cls in self._singletons:
+              return self._singletons[cls]
+          
+          factory, singleton = self._factories[cls]
+          instance = factory(self)
+          
+          if singleton:
+              self._singletons[cls] = instance
+          
+          return instance
+  
+  # services (no circular imports)
+  # user_service.py
+  class UserService:
+      def __init__(self, orders, email):
+          self.orders = orders
+          self.email = email
+  
+  # order_service.py
+  class OrderService:
+      def __init__(self, users):
+          self.users = users
+  
+  # bootstrap.py
+  from container import Container
+  from user_service import UserService
+  from order_service import OrderService
+  from email_service import EmailService
+  
+  container = Container()
+  
+  # Register with lazy resolution to break cycles
+  container.register(
+      EmailService,
+      lambda c: EmailService()
+  )
+  
+  container.register(
+      OrderService,
+      lambda c: OrderService(users=lambda: c.resolve(UserService))
+  )
+  
+  container.register(
+      UserService,
+      lambda c: UserService(
+          orders=c.resolve(OrderService),
+          email=c.resolve(EmailService)
+      )
+  )
+  
+  # Usage
+  user_service = container.resolve(UserService)
+
+step_by_step:
+  - Create a Container class
+  - Add register() and resolve() methods
+  - Modify services to accept dependencies via constructor
+  - Register all services with their factories
+  - Use lambda for lazy resolution to break cycles
+  - Resolve services from container when needed
+
+libraries:
+  - dependency-injector (Python)
+  - injector
+  - punq
+  - lagom
+
+when_to_use:
+  - Large application with many services
+  - Complex dependency graphs
+  - Need testability with easy mocking
+  - Following clean architecture
+
+when_not_to_use:
+  - Small applications
+  - Simple dependency structure
+  - Team unfamiliar with DI concepts
+  - Adds too much complexity
+
+keywords:
+  - dependency injection
+  - IoC container
+  - inversion of control
+  - service container
+  - dependency resolution
+  - factory registration

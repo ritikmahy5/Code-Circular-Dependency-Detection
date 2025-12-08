@@ -1,0 +1,122 @@
+pattern_id: singleton_lazy
+title: Use Lazy Singleton to Break Init-Time Cycles
+anti_pattern: circular_dependency
+refactoring_strategy: lazy_singleton
+complexity: low
+framework: generic
+
+problem_description: |
+  A singleton object is created at module load time, and its
+  initialization requires importing modules that create a
+  circular dependency. The singleton isn't needed until later.
+
+symptoms:
+  - Singleton created at import time
+  - Initialization triggers circular imports
+  - Global state causing issues
+  - Singleton pattern with eager initialization
+
+solution_description: |
+  Change the singleton to lazy initialization - create the
+  instance only when first accessed, not at module load time.
+  This defers the circular import until it's actually needed.
+
+before_code: |
+  # config.py
+  from database import Database  # Circular!
+  
+  class Config:
+      _instance = None
+      
+      def __new__(cls):
+          if cls._instance is None:
+              cls._instance = super().__new__(cls)
+              cls._instance.db = Database()  # Created at import!
+          return cls._instance
+  
+  # Singleton created when module is imported
+  config = Config()
+  
+  # database.py
+  from config import config  # Circular!
+  
+  class Database:
+      def __init__(self):
+          self.url = config.db_url
+
+after_code: |
+  # config.py
+  class Config:
+      _instance = None
+      
+      def __new__(cls):
+          if cls._instance is None:
+              cls._instance = super().__new__(cls)
+          return cls._instance
+      
+      def __init__(self):
+          self._db = None  # Lazy!
+      
+      @property
+      def db(self):
+          if self._db is None:
+              from database import Database  # Lazy import
+              self._db = Database()
+          return self._db
+  
+  def get_config():
+      """Factory function for lazy access."""
+      return Config()
+  
+  # database.py
+  class Database:
+      def __init__(self):
+          from config import get_config
+          self.url = get_config().db_url
+  
+  # --- OR use module-level lazy singleton ---
+  
+  # config.py
+  _config = None
+  
+  def get_config():
+      global _config
+      if _config is None:
+          _config = Config()
+          _config._initialize()  # Lazy init
+      return _config
+  
+  class Config:
+      def _initialize(self):
+          from database import Database
+          self.db = Database()
+
+step_by_step:
+  - Remove module-level singleton instantiation
+  - Create get_instance() or get_config() function
+  - Move initialization logic to lazy properties
+  - Use lazy imports inside initialization
+  - Replace direct access with function calls
+  - Test singleton behavior is preserved
+
+patterns:
+  - Lazy property pattern
+  - Factory function pattern
+  - Double-checked locking (for thread safety)
+
+when_to_use:
+  - Singleton initialization causes cycles
+  - Singleton not needed at import time
+  - Want to defer expensive initialization
+
+when_not_to_use:
+  - Singleton must exist at import time
+  - Lazy initialization adds unacceptable latency
+  - Thread safety is critical (needs more care)
+
+keywords:
+  - singleton
+  - lazy initialization
+  - deferred init
+  - lazy property
+  - global state

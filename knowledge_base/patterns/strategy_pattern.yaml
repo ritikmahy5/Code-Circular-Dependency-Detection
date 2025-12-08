@@ -1,0 +1,107 @@
+pattern_id: strategy_pattern
+title: Use Strategy Pattern to Remove Conditional Dependencies
+anti_pattern: tight_coupling
+refactoring_strategy: strategy
+complexity: medium
+framework: generic
+
+problem_description: |
+  A module imports multiple implementations and selects between
+  them using conditionals. All implementations are imported even
+  when only one is used, causing unnecessary circular dependencies.
+
+symptoms:
+  - if/elif chains selecting implementations
+  - All options imported at module level
+  - Adding new options requires modifying core code
+  - Circular imports from option modules
+
+solution_description: |
+  Define a strategy interface and implement each option as a
+  separate strategy class. The context class accepts a strategy
+  at runtime instead of importing all options.
+
+before_code: |
+  # processor.py
+  from strategy_a import process_a  # Circular!
+  from strategy_b import process_b  # Circular!
+  from strategy_c import process_c  # Circular!
+  
+  class Processor:
+      def __init__(self, strategy_name):
+          self.strategy = strategy_name
+      
+      def process(self, data):
+          if self.strategy == 'a':
+              return process_a(data)
+          elif self.strategy == 'b':
+              return process_b(data)
+          elif self.strategy == 'c':
+              return process_c(data)
+
+after_code: |
+  # strategies/base.py
+  from abc import ABC, abstractmethod
+  
+  class ProcessingStrategy(ABC):
+      @abstractmethod
+      def process(self, data) -> str:
+          pass
+  
+  # strategies/strategy_a.py
+  from .base import ProcessingStrategy
+  
+  class StrategyA(ProcessingStrategy):
+      def process(self, data):
+          return f"A: {data}"
+  
+  # strategies/strategy_b.py
+  from .base import ProcessingStrategy
+  
+  class StrategyB(ProcessingStrategy):
+      def process(self, data):
+          return f"B: {data}"
+  
+  # processor.py (no strategy imports!)
+  from strategies.base import ProcessingStrategy
+  
+  class Processor:
+      def __init__(self, strategy: ProcessingStrategy):
+          self.strategy = strategy
+      
+      def process(self, data):
+          return self.strategy.process(data)
+  
+  # main.py (select strategy at runtime)
+  from processor import Processor
+  from strategies.strategy_a import StrategyA
+  
+  processor = Processor(StrategyA())
+  result = processor.process("hello")
+
+step_by_step:
+  - Define strategy interface (ABC or Protocol)
+  - Create strategy class for each option
+  - Modify context to accept strategy via injection
+  - Remove conditional logic from context
+  - Select and inject strategy at configuration time
+  - Remove unnecessary imports
+
+when_to_use:
+  - Multiple interchangeable algorithms
+  - Want to add options without modifying core
+  - Runtime selection of behavior
+  - Following Open/Closed principle
+
+when_not_to_use:
+  - Only 2 simple options (if/else is fine)
+  - Options won't change
+  - Adds complexity for simple cases
+
+keywords:
+  - strategy pattern
+  - behavioral pattern
+  - algorithm selection
+  - dependency injection
+  - open closed principle
+  - polymorphism

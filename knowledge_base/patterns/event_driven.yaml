@@ -1,0 +1,115 @@
+pattern_id: event_driven
+title: Use Events/Signals to Decouple Modules
+anti_pattern: circular_dependency
+refactoring_strategy: event_driven
+complexity: high
+framework: generic
+
+problem_description: |
+  Modules are tightly coupled because they need to notify each other
+  of state changes. Module A calls functions in B when something happens,
+  and B calls functions in A. This creates bidirectional dependencies.
+
+symptoms:
+  - Modules notify each other of events
+  - State changes trigger cross-module actions
+  - Observer pattern needed but implemented poorly
+  - Want loose coupling for extensibility
+
+solution_description: |
+  Implement an event-driven architecture where modules emit events
+  instead of calling each other directly. An event bus or signal
+  system handles the communication. Modules subscribe to events
+  they care about without knowing who emits them.
+
+before_code: |
+  # user_service.py
+  from email_service import send_welcome_email  # Circular!
+  from analytics import track_signup
+  
+  class UserService:
+      def register(self, email):
+          user = User(email)
+          user.save()
+          send_welcome_email(user)  # Direct call
+          track_signup(user)  # Direct call
+          return user
+  
+  # email_service.py
+  from user_service import UserService  # Circular!
+  
+  def send_welcome_email(user):
+      # sends email
+      pass
+
+after_code: |
+  # events.py (new event bus)
+  from collections import defaultdict
+  
+  class EventBus:
+      _subscribers = defaultdict(list)
+      
+      @classmethod
+      def subscribe(cls, event_type, handler):
+          cls._subscribers[event_type].append(handler)
+      
+      @classmethod
+      def emit(cls, event_type, data):
+          for handler in cls._subscribers[event_type]:
+              handler(data)
+  
+  # user_service.py (no direct imports)
+  from events import EventBus
+  
+  class UserService:
+      def register(self, email):
+          user = User(email)
+          user.save()
+          EventBus.emit('user_registered', user)  # Emit event
+          return user
+  
+  # email_service.py (subscribes to events)
+  from events import EventBus
+  
+  def send_welcome_email(user):
+      print(f"Welcome {user.email}!")
+  
+  EventBus.subscribe('user_registered', send_welcome_email)
+  
+  # analytics.py (subscribes to events)
+  from events import EventBus
+  
+  def track_signup(user):
+      print(f"Tracking signup for {user.email}")
+  
+  EventBus.subscribe('user_registered', track_signup)
+
+step_by_step:
+  - Identify cross-module notifications causing cycles
+  - Create an event bus or use a library (blinker, PyDispatcher)
+  - Define event types for each notification
+  - Replace direct calls with event emissions
+  - Add subscribers in each module
+  - Wire up subscriptions at startup
+
+when_to_use:
+  - Multiple modules react to same events
+  - Want plugin/extension architecture
+  - Need to add handlers without modifying emitter
+  - Implementing observer pattern
+
+when_not_to_use:
+  - Simple direct call is clearer
+  - Need return values from handlers
+  - Debugging event flow would be difficult
+  - Only two modules involved (use simpler pattern)
+
+keywords:
+  - event driven
+  - event bus
+  - signals
+  - pub/sub
+  - observer pattern
+  - loose coupling
+  - blinker
+  - PyDispatcher

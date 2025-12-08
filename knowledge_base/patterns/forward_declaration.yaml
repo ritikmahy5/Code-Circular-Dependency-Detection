@@ -1,0 +1,136 @@
+pattern_id: forward_declaration
+title: Use Forward Declaration for Mutual References
+anti_pattern: circular_dependency
+refactoring_strategy: forward_declaration
+complexity: low
+framework: generic
+
+problem_description: |
+  Two classes need to reference each other's types, typically for
+  type hints or documentation. This creates circular imports even
+  though the actual types aren't needed at runtime.
+
+symptoms:
+  - Type hints cause circular imports
+  - Both classes defined in same logical unit
+  - Only need type for documentation/hints
+  - Runtime doesn't actually need the import
+
+solution_description: |
+  Use forward declarations - reference types by string name
+  instead of importing them. Python's type system resolves
+  string annotations at type-checking time, not runtime.
+
+before_code: |
+  # node.py
+  from tree import Tree  # Circular!
+  
+  class Node:
+      def __init__(self, value):
+          self.value = value
+          self.parent: Tree = None
+          self.children: list[Node] = []
+      
+      def get_tree(self) -> Tree:
+          return self.parent
+  
+  # tree.py
+  from node import Node  # Circular!
+  
+  class Tree:
+      def __init__(self):
+          self.root: Node = None
+      
+      def add_node(self, value) -> Node:
+          node = Node(value)
+          node.parent = self
+          return node
+
+after_code: |
+  # Option 1: String annotations
+  # node.py (no import)
+  class Node:
+      def __init__(self, value):
+          self.value = value
+          self.parent: 'Tree' = None  # String forward reference
+          self.children: list['Node'] = []
+      
+      def get_tree(self) -> 'Tree':
+          return self.parent
+  
+  # tree.py (no import)
+  class Tree:
+      def __init__(self):
+          self.root: 'Node' = None  # String forward reference
+      
+      def add_node(self, value) -> 'Node':
+          from node import Node  # Local import only when needed
+          node = Node(value)
+          node.parent = self
+          return node
+  
+  # ---
+  
+  # Option 2: PEP 563 - from __future__ import annotations
+  # node.py
+  from __future__ import annotations  # All annotations become strings
+  
+  class Node:
+      def __init__(self, value):
+          self.value = value
+          self.parent: Tree = None  # Works without quotes!
+          self.children: list[Node] = []
+      
+      def get_tree(self) -> Tree:
+          return self.parent
+  
+  # ---
+  
+  # Option 3: TYPE_CHECKING guard (most explicit)
+  # node.py
+  from __future__ import annotations
+  from typing import TYPE_CHECKING
+  
+  if TYPE_CHECKING:
+      from tree import Tree  # Only imported for type checkers
+  
+  class Node:
+      def __init__(self, value):
+          self.value = value
+          self.parent: Tree = None
+      
+      def get_tree(self) -> Tree:
+          return self.parent
+
+step_by_step:
+  - Identify imports needed only for type hints
+  - Choose approach (string annotations, future, TYPE_CHECKING)
+  - Remove runtime imports
+  - Add forward references
+  - Verify type checker still works
+  - Keep runtime imports only where needed
+
+comparison:
+  - String quotes: Works everywhere, explicit
+  - __future__ annotations: Cleaner, requires Python 3.7+
+  - TYPE_CHECKING: Most explicit, good for complex cases
+
+when_to_use:
+  - Type hints cause circular imports
+  - Runtime doesn't need the type
+  - Classes logically related but separate files
+  - Want IDE support without runtime coupling
+
+when_not_to_use:
+  - Need isinstance() with the type
+  - Need to instantiate the class
+  - Runtime type checking required
+
+keywords:
+  - forward declaration
+  - forward reference
+  - string annotation
+  - type hint
+  - PEP 484
+  - PEP 563
+  - TYPE_CHECKING

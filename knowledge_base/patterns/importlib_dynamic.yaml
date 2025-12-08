@@ -1,0 +1,111 @@
+pattern_id: importlib_dynamic
+title: Use importlib for Dynamic Import
+anti_pattern: circular_dependency
+refactoring_strategy: dynamic_import
+complexity: medium
+framework: generic
+
+problem_description: |
+  A module needs to import another module dynamically based on
+  configuration or runtime conditions. Using standard import
+  creates a circular dependency that could be avoided with
+  dynamic imports.
+
+symptoms:
+  - Module determined at runtime
+  - Plugin or extension system
+  - Import based on configuration
+  - Need to break hard dependency
+
+solution_description: |
+  Use Python's importlib module to import modules dynamically
+  at runtime instead of at module load time. This breaks the
+  static dependency graph and allows circular references.
+
+before_code: |
+  # plugin_manager.py
+  from plugins.auth import AuthPlugin  # Circular!
+  from plugins.cache import CachePlugin
+  from plugins.logging import LogPlugin
+  
+  class PluginManager:
+      def __init__(self):
+          self.plugins = {
+              'auth': AuthPlugin(),
+              'cache': CachePlugin(),
+              'logging': LogPlugin(),
+          }
+  
+  # plugins/auth.py
+  from plugin_manager import PluginManager  # Circular!
+  
+  class AuthPlugin:
+      def get_manager(self):
+          return PluginManager()
+
+after_code: |
+  # plugin_manager.py
+  import importlib
+  
+  class PluginManager:
+      PLUGINS = {
+          'auth': 'plugins.auth.AuthPlugin',
+          'cache': 'plugins.cache.CachePlugin',
+          'logging': 'plugins.logging.LogPlugin',
+      }
+      
+      def __init__(self):
+          self.plugins = {}
+      
+      def load_plugin(self, name):
+          if name not in self.plugins:
+              module_path, class_name = self.PLUGINS[name].rsplit('.', 1)
+              module = importlib.import_module(module_path)
+              plugin_class = getattr(module, class_name)
+              self.plugins[name] = plugin_class()
+          return self.plugins[name]
+      
+      def get_plugin(self, name):
+          return self.load_plugin(name)
+  
+  # plugins/auth.py (no circular import)
+  class AuthPlugin:
+      def get_manager(self):
+          # Dynamic import when needed
+          import importlib
+          manager_module = importlib.import_module('plugin_manager')
+          return manager_module.PluginManager()
+
+step_by_step:
+  - Identify imports that could be dynamic
+  - Replace static imports with importlib.import_module()
+  - Store module/class paths as strings
+  - Load modules on first use (lazy loading)
+  - Cache loaded modules/classes for performance
+  - Add error handling for missing modules
+
+importlib_functions:
+  - import_module(name) - Import module by name
+  - reload(module) - Reload a module
+  - find_loader(name) - Find module loader
+  - util.find_spec(name) - Get module spec
+
+when_to_use:
+  - Plugin or extension systems
+  - Configuration-driven imports
+  - Breaking complex circular dependencies
+  - Optional dependencies
+
+when_not_to_use:
+  - Simple cases where lazy import suffices
+  - Lose IDE support and type checking
+  - Makes code harder to understand
+  - Performance critical code
+
+keywords:
+  - importlib
+  - dynamic import
+  - runtime import
+  - plugin system
+  - lazy loading
+  - string import

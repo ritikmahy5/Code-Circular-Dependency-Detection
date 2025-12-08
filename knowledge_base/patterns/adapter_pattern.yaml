@@ -1,0 +1,107 @@
+pattern_id: adapter_pattern
+title: Use Adapter to Decouple Incompatible Interfaces
+anti_pattern: tight_coupling
+refactoring_strategy: adapter
+complexity: medium
+framework: generic
+
+problem_description: |
+  Module A needs to use Module B, but B's interface doesn't match
+  what A expects. A imports B to adapt it, and B might import A
+  for configuration, creating a cycle.
+
+symptoms:
+  - Interface mismatch between modules
+  - Wrapper code mixed with business logic
+  - Hard to swap implementations
+  - Circular imports for adaptation
+
+solution_description: |
+  Create an adapter class that wraps the incompatible interface
+  and presents the expected interface. Put the adapter in a
+  separate module that breaks the circular dependency.
+
+before_code: |
+  # analytics.py
+  from external_api import ExternalAnalytics  # Circular!
+  
+  class Analytics:
+      def __init__(self):
+          self.external = ExternalAnalytics()
+      
+      def track(self, event, data):
+          # Adapt interface inline
+          self.external.send_event({
+              'event_name': event,
+              'payload': data,
+              'timestamp': time.time()
+          })
+  
+  # external_api.py
+  from analytics import Analytics  # Circular for config!
+  
+  class ExternalAnalytics:
+      def send_event(self, event_dict):
+          # ... send to external service
+
+after_code: |
+  # adapters/analytics_adapter.py (new)
+  class AnalyticsAdapter:
+      """Adapts ExternalAnalytics to our expected interface."""
+      
+      def __init__(self, external_client):
+          self._client = external_client
+      
+      def track(self, event: str, data: dict):
+          """Our standard interface."""
+          self._client.send_event({
+              'event_name': event,
+              'payload': data,
+              'timestamp': time.time()
+          })
+  
+  # analytics.py (no external import)
+  from adapters.analytics_adapter import AnalyticsAdapter
+  
+  class Analytics:
+      def __init__(self, adapter: AnalyticsAdapter):
+          self.adapter = adapter
+      
+      def track(self, event, data):
+          self.adapter.track(event, data)
+  
+  # bootstrap.py (wire up)
+  from external_api import ExternalAnalytics
+  from adapters.analytics_adapter import AnalyticsAdapter
+  from analytics import Analytics
+  
+  external = ExternalAnalytics()
+  adapter = AnalyticsAdapter(external)
+  analytics = Analytics(adapter)
+
+step_by_step:
+  - Identify the incompatible interface
+  - Define the expected interface
+  - Create adapter class that bridges them
+  - Move adapter to separate module
+  - Inject adapter instead of direct dependency
+  - Wire up in bootstrap/main
+
+when_to_use:
+  - Integrating third-party libraries
+  - Interface mismatch between modules
+  - Want to swap implementations
+  - Following ports and adapters architecture
+
+when_not_to_use:
+  - Interfaces already compatible
+  - Simple cases don't need abstraction
+  - Adapter adds unnecessary complexity
+
+keywords:
+  - adapter
+  - wrapper
+  - interface adaptation
+  - ports and adapters
+  - hexagonal architecture
+  - dependency inversion

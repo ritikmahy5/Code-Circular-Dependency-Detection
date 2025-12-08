@@ -1,0 +1,85 @@
+pattern_id: conditional_import
+title: Use Conditional Import Based on Context
+anti_pattern: circular_dependency
+refactoring_strategy: conditional_import
+complexity: low
+framework: generic
+
+problem_description: |
+  A module needs different implementations based on environment,
+  platform, or configuration. The conditional logic causes
+  unnecessary imports that create circular dependencies.
+
+symptoms:
+  - Different code paths for different environments
+  - Platform-specific imports (Windows vs Linux)
+  - Optional dependency handling
+  - Feature flags affecting imports
+
+solution_description: |
+  Use conditional imports with try/except or if statements to
+  only import what's needed in the current context. This avoids
+  loading modules that might cause circular dependencies.
+
+before_code: |
+  # utils.py
+  from windows_impl import WindowsHandler  # Circular on Linux!
+  from linux_impl import LinuxHandler      # Circular on Windows!
+  import platform
+  
+  def get_handler():
+      if platform.system() == 'Windows':
+          return WindowsHandler()
+      return LinuxHandler()
+
+after_code: |
+  # utils.py
+  import platform
+  
+  def get_handler():
+      if platform.system() == 'Windows':
+          from windows_impl import WindowsHandler
+          return WindowsHandler()
+      else:
+          from linux_impl import LinuxHandler
+          return LinuxHandler()
+  
+  # --- OR for optional dependencies ---
+  
+  # utils.py
+  try:
+      from optional_module import FastProcessor
+      HAS_FAST = True
+  except ImportError:
+      HAS_FAST = False
+  
+  def get_processor():
+      if HAS_FAST:
+          return FastProcessor()
+      from fallback import SlowProcessor
+      return SlowProcessor()
+
+step_by_step:
+  - Identify imports that aren't always needed
+  - Move imports inside conditional blocks
+  - Use try/except for optional dependencies
+  - Test all code paths
+  - Document why imports are conditional
+
+when_to_use:
+  - Platform-specific code
+  - Optional dependencies
+  - Feature flags
+  - Development vs production differences
+
+when_not_to_use:
+  - Import always needed regardless of condition
+  - Makes code too hard to follow
+  - Performance critical (import overhead)
+
+keywords:
+  - conditional import
+  - optional import
+  - try except import
+  - platform specific
+  - feature flag

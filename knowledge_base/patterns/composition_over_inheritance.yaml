@@ -1,0 +1,132 @@
+pattern_id: composition_over_inheritance
+title: Use Composition Over Inheritance
+anti_pattern: tight_coupling
+refactoring_strategy: composition
+complexity: medium
+framework: generic
+
+problem_description: |
+  Classes use inheritance to share behavior, creating import
+  dependencies on parent classes. Changes to parent affect all
+  children. Inheritance hierarchies become complex.
+
+symptoms:
+  - Deep inheritance hierarchies
+  - Multiple inheritance complications
+  - Child classes import parent from different module
+  - "Diamond problem" in inheritance
+  - Fragile base class problem
+
+solution_description: |
+  Replace inheritance with composition - classes contain instances
+  of other classes rather than inheriting from them. This allows
+  behavior to be mixed and matched flexibly.
+
+before_code: |
+  # base.py
+  from logger import Logger  # Circular!
+  from validator import Validator
+  
+  class BaseService:
+      def __init__(self):
+          self.logger = Logger()
+          self.validator = Validator()
+      
+      def log(self, msg):
+          self.logger.info(msg)
+      
+      def validate(self, data):
+          return self.validator.check(data)
+  
+  # user_service.py
+  from base import BaseService  # Inherits all dependencies!
+  
+  class UserService(BaseService):
+      def create(self, data):
+          self.validate(data)
+          user = User(**data)
+          self.log(f"Created user {user.id}")
+          return user
+
+after_code: |
+  # components.py (composable behaviors)
+  class LoggingMixin:
+      def __init__(self, logger):
+          self._logger = logger
+      
+      def log(self, msg):
+          self._logger.info(msg)
+  
+  class ValidationMixin:
+      def __init__(self, validator):
+          self._validator = validator
+      
+      def validate(self, data):
+          return self._validator.check(data)
+  
+  # user_service.py (composition)
+  class UserService:
+      def __init__(self, logger, validator):
+          self.logger = logger
+          self.validator = validator
+      
+      def create(self, data):
+          self.validator.check(data)
+          user = User(**data)
+          self.logger.info(f"Created user {user.id}")
+          return user
+  
+  # --- OR use has-a relationships ---
+  
+  # user_service.py
+  class UserService:
+      def __init__(self, logger, validator, repository):
+          self._logger = logger        # Has-a logger
+          self._validator = validator  # Has-a validator
+          self._repo = repository      # Has-a repository
+      
+      def create(self, data):
+          if not self._validator.check(data):
+              raise ValueError("Invalid data")
+          user = self._repo.save(User(**data))
+          self._logger.info(f"Created user {user.id}")
+          return user
+  
+  # main.py (wire up)
+  logger = Logger()
+  validator = Validator()
+  repo = UserRepository()
+  user_service = UserService(logger, validator, repo)
+
+step_by_step:
+  - Identify behavior inherited from base class
+  - Create components for each behavior
+  - Add component instances as attributes
+  - Delegate to components instead of inheriting
+  - Inject components via constructor
+  - Remove inheritance relationship
+
+composition_patterns:
+  - Has-a relationship
+  - Dependency injection
+  - Strategy pattern
+  - Decorator pattern
+
+when_to_use:
+  - Inheritance hierarchy getting complex
+  - Need to mix behaviors flexibly
+  - Want easier testing (mock components)
+  - Following SOLID principles
+
+when_not_to_use:
+  - True "is-a" relationship
+  - Simple inheritance is clearer
+  - Framework requires inheritance
+
+keywords:
+  - composition
+  - has-a
+  - delegation
+  - favor composition
+  - SOLID
+  - flexible design

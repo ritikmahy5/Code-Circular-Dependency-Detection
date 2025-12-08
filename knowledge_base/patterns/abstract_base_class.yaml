@@ -1,0 +1,111 @@
+pattern_id: abstract_base_class
+title: Use Abstract Base Class for Interface
+anti_pattern: circular_dependency
+refactoring_strategy: abstract_base_class
+complexity: medium
+framework: generic
+
+problem_description: |
+  Module A depends on concrete implementations in Module B, and 
+  vice versa. The dependency could be broken by depending on
+  abstractions instead of concretions (Dependency Inversion Principle).
+
+symptoms:
+  - Tight coupling to concrete classes
+  - Need isinstance() checks
+  - Want to enforce interface contracts
+  - Multiple implementations possible
+
+solution_description: |
+  Create an Abstract Base Class (ABC) in a shared module that defines
+  the interface. Both modules depend on the abstraction instead of
+  each other. Concrete classes inherit from the ABC.
+
+before_code: |
+  # storage.py
+  from processor import DataProcessor  # Circular!
+  
+  class Storage:
+      def __init__(self, processor: DataProcessor):
+          self.processor = processor
+      
+      def save(self, data):
+          processed = self.processor.process(data)
+          self._write(processed)
+  
+  # processor.py
+  from storage import Storage  # Circular!
+  
+  class DataProcessor:
+      def __init__(self, storage: Storage):
+          self.storage = storage
+      
+      def process(self, data):
+          return data.strip()
+
+after_code: |
+  # interfaces.py (new shared module)
+  from abc import ABC, abstractmethod
+  
+  class StorageInterface(ABC):
+      @abstractmethod
+      def save(self, data) -> None: ...
+      
+      @abstractmethod
+      def load(self, key) -> str: ...
+  
+  class ProcessorInterface(ABC):
+      @abstractmethod
+      def process(self, data) -> str: ...
+  
+  # storage.py (depends on interface)
+  from interfaces import StorageInterface, ProcessorInterface
+  
+  class Storage(StorageInterface):
+      def __init__(self, processor: ProcessorInterface):
+          self.processor = processor
+      
+      def save(self, data):
+          processed = self.processor.process(data)
+          self._write(processed)
+      
+      def load(self, key):
+          return self._read(key)
+  
+  # processor.py (depends on interface)
+  from interfaces import StorageInterface, ProcessorInterface
+  
+  class DataProcessor(ProcessorInterface):
+      def __init__(self, storage: StorageInterface):
+          self.storage = storage
+      
+      def process(self, data):
+          return data.strip()
+
+step_by_step:
+  - Identify concrete classes causing circular dependencies
+  - Create interfaces.py with Abstract Base Classes
+  - Define @abstractmethod for each required method
+  - Update concrete classes to inherit from ABCs
+  - Change type hints to use interfaces
+  - Remove direct imports between modules
+
+when_to_use:
+  - Need to enforce interface contracts
+  - Want isinstance() checks to work
+  - Multiple implementations exist or planned
+  - Following SOLID principles
+
+when_not_to_use:
+  - Protocol (structural typing) would suffice
+  - Adding inheritance is undesirable
+  - Simple function-based design is clearer
+
+keywords:
+  - ABC
+  - abstract base class
+  - interface
+  - dependency inversion
+  - SOLID
+  - abstraction
+  - inheritance

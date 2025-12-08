@@ -1,0 +1,86 @@
+pattern_id: callback_injection
+title: Use Callback Functions Instead of Direct Import
+anti_pattern: circular_dependency
+refactoring_strategy: callback
+complexity: low
+framework: generic
+
+problem_description: |
+  Module A imports a function from Module B, and Module B imports
+  something from Module A. However, Module A only needs to call
+  a function from B, it doesn't need the actual implementation.
+
+symptoms:
+  - Module imports another just to call one function
+  - The imported function could be passed as parameter
+  - Loose coupling is desirable
+  - Function signature is simple
+
+solution_description: |
+  Instead of importing the function directly, accept it as a 
+  callback parameter. This inverts the dependency - the caller
+  provides the implementation instead of importing it.
+
+before_code: |
+  # processor.py
+  from validator import validate  # Circular!
+  
+  def process(data):
+      if validate(data):
+          return transform(data)
+      return None
+  
+  # validator.py
+  from processor import transform  # Circular!
+  
+  def validate(data):
+      # Uses transform internally
+      return transform(data) is not None
+
+after_code: |
+  # processor.py (no import needed)
+  def process(data, validate_fn):
+      if validate_fn(data):
+          return transform(data)
+      return None
+  
+  def transform(data):
+      return data.upper()
+  
+  # validator.py (no import needed)
+  def create_validator(transform_fn):
+      def validate(data):
+          return transform_fn(data) is not None
+      return validate
+  
+  # main.py (wire up at top level)
+  from processor import process, transform
+  from validator import create_validator
+  
+  validate = create_validator(transform)
+  result = process(data, validate)
+
+step_by_step:
+  - Identify functions that cause the circular import
+  - Change the function signature to accept callbacks
+  - Create factory functions if needed
+  - Wire up dependencies at application entry point
+  - Remove the circular imports
+
+when_to_use:
+  - Only need to call a function, not access module state
+  - Function signature is simple
+  - Want maximum flexibility/testability
+  - Dependency injection is acceptable
+
+when_not_to_use:
+  - Need access to module-level state
+  - Many functions would need callbacks (use mediator instead)
+  - Callback signatures are complex
+
+keywords:
+  - callback
+  - function injection
+  - higher-order function
+  - dependency inversion
+  - functional programming

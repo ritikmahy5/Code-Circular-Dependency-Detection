@@ -1,0 +1,113 @@
+pattern_id: observer_decoupled
+title: Decoupled Observer Pattern
+anti_pattern: circular_dependency
+refactoring_strategy: observer
+complexity: medium
+framework: generic
+
+problem_description: |
+  Observers need to import the subject to register themselves,
+  and the subject needs to import observers to notify them.
+  This bidirectional relationship creates circular dependencies.
+
+symptoms:
+  - Subject imports all observers
+  - Observers import subject
+  - Adding observer requires modifying subject
+  - Tightly coupled notification system
+
+solution_description: |
+  Decouple observers from the subject by using a subscription
+  mechanism where observers register callbacks. The subject
+  doesn't need to know about observer types.
+
+before_code: |
+  # subject.py
+  from observer_a import ObserverA  # Circular!
+  from observer_b import ObserverB  # Circular!
+  
+  class Subject:
+      def __init__(self):
+          self.observers = [ObserverA(), ObserverB()]
+      
+      def notify(self, event):
+          for obs in self.observers:
+              obs.update(event)
+  
+  # observer_a.py
+  from subject import Subject  # Circular!
+  
+  class ObserverA:
+      def __init__(self):
+          self.subject = Subject()
+      
+      def update(self, event):
+          print(f"A got: {event}")
+
+after_code: |
+  # subject.py (no observer imports)
+  class Subject:
+      def __init__(self):
+          self._observers = []
+      
+      def subscribe(self, callback):
+          """Register a callback function."""
+          self._observers.append(callback)
+          return lambda: self._observers.remove(callback)
+      
+      def notify(self, event):
+          for callback in self._observers:
+              callback(event)
+  
+  # observer_a.py (no subject import needed for type)
+  class ObserverA:
+      def __init__(self):
+          pass
+      
+      def handle_event(self, event):
+          print(f"A got: {event}")
+  
+  # main.py (wire up)
+  from subject import Subject
+  from observer_a import ObserverA
+  from observer_b import ObserverB
+  
+  subject = Subject()
+  obs_a = ObserverA()
+  obs_b = ObserverB()
+  
+  # Subscribe with callbacks
+  unsubscribe_a = subject.subscribe(obs_a.handle_event)
+  unsubscribe_b = subject.subscribe(obs_b.handle_event)
+  
+  subject.notify("hello")  # Both observers notified
+  
+  unsubscribe_a()  # Can unsubscribe
+  subject.notify("world")  # Only B notified
+
+step_by_step:
+  - Remove observer imports from subject
+  - Change subject to store callbacks instead of observers
+  - Add subscribe() method that accepts callbacks
+  - Return unsubscribe function for cleanup
+  - Wire up subscriptions at application startup
+  - Remove subject reference from observers if not needed
+
+when_to_use:
+  - Event notification systems
+  - Decoupled UI updates
+  - Plugin notification
+  - Any observer pattern implementation
+
+when_not_to_use:
+  - Observers need direct subject reference
+  - Simple direct notification is clearer
+  - Only one observer exists
+
+keywords:
+  - observer
+  - subscribe
+  - callback
+  - event notification
+  - publish subscribe
+  - decoupling

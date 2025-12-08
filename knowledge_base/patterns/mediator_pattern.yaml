@@ -1,0 +1,94 @@
+pattern_id: mediator_pattern
+title: Introduce Mediator to Break Cycle
+anti_pattern: circular_dependency
+refactoring_strategy: mediator
+complexity: high
+framework: generic
+
+problem_description: |
+  Multiple modules communicate directly with each other, creating 
+  a web of dependencies. Each module knows about several others,
+  making the system hard to understand and modify.
+
+symptoms:
+  - Multiple modules with circular dependencies
+  - Complex import graphs
+  - Changes ripple through many modules
+  - Hard to test modules in isolation
+  - Spaghetti architecture
+
+solution_description: |
+  Introduce a mediator module that handles all communication between
+  the other modules. Each module only knows about the mediator, not
+  each other. This converts a many-to-many relationship into a 
+  hub-and-spoke pattern.
+
+before_code: |
+  # user.py
+  from notification import send_notification
+  from analytics import track_event
+  
+  class User:
+      def register(self):
+          send_notification("Welcome!")  # Direct dependency
+          track_event("user_registered")  # Direct dependency
+  
+  # notification.py
+  from user import User  # Circular!
+  from analytics import track_event
+  
+  def send_notification(msg):
+      track_event("notification_sent")
+      print(msg)
+
+after_code: |
+  # mediator.py (new)
+  class AppMediator:
+      def __init__(self):
+          self.notification = None
+          self.analytics = None
+          self.user = None
+      
+      def user_registered(self, user):
+          self.notification.send("Welcome!")
+          self.analytics.track("user_registered")
+  
+  # user.py
+  class User:
+      def __init__(self, mediator):
+          self.mediator = mediator
+      
+      def register(self):
+          self.mediator.user_registered(self)
+  
+  # notification.py (no imports from other modules)
+  class NotificationService:
+      def send(self, msg):
+          print(msg)
+
+step_by_step:
+  - Identify the group of modules with circular dependencies
+  - Create a new mediator module
+  - Define methods in mediator for each type of interaction
+  - Update each module to use mediator instead of direct imports
+  - Remove direct dependencies between modules
+  - Wire up the mediator at application startup
+
+when_to_use:
+  - Complex web of dependencies between 3+ modules
+  - Need to decouple business logic from infrastructure
+  - Want to make testing easier
+  - Planning to swap implementations
+
+when_not_to_use:
+  - Simple two-module cycle (use simpler patterns)
+  - Would create an overly complex mediator
+  - Direct communication is conceptually correct
+
+keywords:
+  - mediator
+  - hub and spoke
+  - message broker
+  - event bus
+  - decoupling
+  - coordinator

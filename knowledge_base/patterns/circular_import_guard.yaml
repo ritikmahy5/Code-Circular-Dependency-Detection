@@ -1,0 +1,113 @@
+pattern_id: circular_import_guard
+title: Use Import Guard to Handle Circular Imports
+anti_pattern: circular_dependency
+refactoring_strategy: import_guard
+complexity: low
+framework: generic
+
+problem_description: |
+  Circular import causes ImportError or AttributeError at runtime.
+  A quick fix is needed without major restructuring. The import
+  guard pattern can prevent the error.
+
+symptoms:
+  - ImportError: cannot import name 'X'
+  - AttributeError: module has no attribute
+  - Import works in some orders but not others
+  - Need quick fix for production issue
+
+solution_description: |
+  Add a guard that checks if the module is already being imported
+  and handles the circular case gracefully. This is a band-aid
+  solution but can prevent crashes.
+
+before_code: |
+  # a.py
+  from b import B  # Fails when b imports a first
+  
+  class A:
+      def get_b(self):
+          return B()
+  
+  # b.py
+  from a import A  # Fails when a imports b first
+  
+  class B:
+      def get_a(self):
+          return A()
+  
+  # Error depends on which module is imported first!
+  # ImportError: cannot import name 'A' from partially initialized module
+
+after_code: |
+  # a.py
+  import sys
+  
+  class A:
+      def get_b(self):
+          # Import inside method to avoid cycle
+          from b import B
+          return B()
+  
+  # Guard for module-level access if needed
+  def _get_B():
+      """Lazy accessor to avoid import cycle."""
+      from b import B
+      return B
+  
+  # b.py
+  import sys
+  
+  class B:
+      def get_a(self):
+          from a import A
+          return A()
+  
+  # --- OR use try/except guard ---
+  
+  # a.py
+  try:
+      from b import B
+      _HAS_B = True
+  except ImportError:
+      _HAS_B = False
+      B = None
+  
+  class A:
+      def get_b(self):
+          if not _HAS_B:
+              from b import B
+          return B()
+
+step_by_step:
+  - Identify the failing import
+  - Move import inside methods if possible
+  - Use try/except as last resort
+  - Add lazy accessor functions
+  - Document why guard is needed
+  - Plan proper fix for later
+
+warning: |
+  This is a TEMPORARY fix! Import guards make code fragile and
+  hard to understand. Use this only for emergency production
+  fixes, then plan proper restructuring.
+
+when_to_use:
+  - Emergency production fix needed
+  - Can't restructure right now
+  - Need to unblock development
+  - Temporary workaround
+
+when_not_to_use:
+  - Have time for proper fix
+  - New code (design it right)
+  - Makes code too confusing
+  - Better patterns available
+
+keywords:
+  - import guard
+  - try except import
+  - circular import error
+  - ImportError
+  - quick fix
+  - workaround

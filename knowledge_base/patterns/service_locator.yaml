@@ -1,0 +1,109 @@
+pattern_id: service_locator
+title: Use Service Locator for Dependency Lookup
+anti_pattern: circular_dependency
+refactoring_strategy: service_locator
+complexity: medium
+framework: generic
+
+problem_description: |
+  Modules need to access services/dependencies but importing
+  them directly creates circular dependencies. A centralized
+  way to locate services is needed.
+
+symptoms:
+  - Many modules importing same dependencies
+  - Circular imports between service consumers and providers
+  - Hard to swap implementations
+  - Testing requires complex mocking
+
+solution_description: |
+  Create a service locator that acts as a registry for services.
+  Modules request services by name/type instead of importing
+  directly. Services register themselves at startup.
+
+before_code: |
+  # user_service.py
+  from database import Database  # Circular!
+  from cache import Cache
+  from logger import Logger
+  
+  class UserService:
+      def __init__(self):
+          self.db = Database()
+          self.cache = Cache()
+          self.logger = Logger()
+  
+  # database.py
+  from logger import Logger
+  from user_service import UserService  # Circular!
+
+after_code: |
+  # locator.py
+  class ServiceLocator:
+      _services = {}
+      
+      @classmethod
+      def register(cls, name, service):
+          cls._services[name] = service
+      
+      @classmethod
+      def get(cls, name):
+          if name not in cls._services:
+              raise KeyError(f"Service '{name}' not registered")
+          return cls._services[name]
+      
+      @classmethod
+      def clear(cls):
+          """For testing - clear all services."""
+          cls._services.clear()
+  
+  # user_service.py (no direct imports)
+  from locator import ServiceLocator
+  
+  class UserService:
+      def __init__(self):
+          self.db = ServiceLocator.get('database')
+          self.cache = ServiceLocator.get('cache')
+          self.logger = ServiceLocator.get('logger')
+  
+  # bootstrap.py (wire up at startup)
+  from locator import ServiceLocator
+  from database import Database
+  from cache import Cache
+  from logger import Logger
+  
+  def bootstrap():
+      ServiceLocator.register('database', Database())
+      ServiceLocator.register('cache', Cache())
+      ServiceLocator.register('logger', Logger())
+
+step_by_step:
+  - Create ServiceLocator class with register/get methods
+  - Create bootstrap module to wire up services
+  - Replace direct imports with ServiceLocator.get()
+  - Register services at application startup
+  - Use clear() in tests to reset state
+
+when_to_use:
+  - Many services needed across modules
+  - Want to swap implementations easily
+  - Need centralized configuration
+  - Building plugin architecture
+
+when_not_to_use:
+  - Simple applications
+  - Makes dependencies implicit (hidden)
+  - Prefer explicit dependency injection
+
+trade_offs:
+  - Dependencies become implicit
+  - Runtime errors instead of import errors
+  - Harder to trace dependencies
+  - But breaks circular dependencies effectively
+
+keywords:
+  - service locator
+  - dependency lookup
+  - registry
+  - inversion of control
+  - IoC container

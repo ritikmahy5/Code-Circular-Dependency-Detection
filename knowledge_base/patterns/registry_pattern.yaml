@@ -1,0 +1,118 @@
+pattern_id: registry_pattern
+title: Use Registry Pattern to Break Dependency
+anti_pattern: circular_dependency
+refactoring_strategy: registry
+complexity: medium
+framework: generic
+
+problem_description: |
+  Multiple modules need to register themselves with a central
+  coordinator, but the coordinator also needs to know about the
+  modules. This creates a web of circular dependencies.
+
+symptoms:
+  - Modules register with a central manager
+  - Manager needs to import all modules
+  - Plugin or handler registration pattern
+  - Circular imports during registration
+
+solution_description: |
+  Create a registry module that modules register with using
+  decorators or registration functions. The registry doesn't
+  import the modules directly - modules import and register
+  themselves. This inverts the dependency direction.
+
+before_code: |
+  # handlers.py (central manager)
+  from user_handler import UserHandler  # Circular!
+  from order_handler import OrderHandler
+  from payment_handler import PaymentHandler
+  
+  HANDLERS = {
+      'user': UserHandler,
+      'order': OrderHandler,
+      'payment': PaymentHandler,
+  }
+  
+  def get_handler(name):
+      return HANDLERS[name]()
+  
+  # user_handler.py
+  from handlers import get_handler  # Circular!
+  
+  class UserHandler:
+      def process(self, data):
+          order_handler = get_handler('order')
+          return order_handler.create(data)
+
+after_code: |
+  # registry.py (no imports from handlers)
+  _registry = {}
+  
+  def register(name):
+      """Decorator to register a handler."""
+      def decorator(cls):
+          _registry[name] = cls
+          return cls
+      return decorator
+  
+  def get_handler(name):
+      return _registry[name]()
+  
+  # user_handler.py
+  from registry import register, get_handler
+  
+  @register('user')  # Self-registration
+  class UserHandler:
+      def process(self, data):
+          order_handler = get_handler('order')
+          return order_handler.create(data)
+  
+  # order_handler.py
+  from registry import register
+  
+  @register('order')  # Self-registration
+  class OrderHandler:
+      def create(self, data):
+          return {'order': data}
+  
+  # main.py (import handlers to trigger registration)
+  import user_handler
+  import order_handler
+  import payment_handler
+  
+  from registry import get_handler
+  handler = get_handler('user')
+
+step_by_step:
+  - Create a registry module with register decorator
+  - Add get_handler or similar lookup function
+  - Decorate classes that need registration
+  - Import handler modules at application startup
+  - Use registry for lookups instead of direct imports
+
+variations:
+  - Class decorator (shown above)
+  - Function registration (register_handler(name, cls))
+  - Metaclass registration
+  - Entry points (setuptools)
+
+when_to_use:
+  - Plugin or extension systems
+  - Handler/strategy pattern
+  - Auto-discovery of implementations
+  - Reducing import complexity
+
+when_not_to_use:
+  - Simple direct imports work fine
+  - Registration adds unnecessary complexity
+  - Order of registration matters
+
+keywords:
+  - registry
+  - registration
+  - decorator
+  - plugin
+  - handler
+  - self-registration
+  - auto-discovery

@@ -1,0 +1,107 @@
+pattern_id: common_module_extraction
+title: Extract Shared Code to Common Module
+anti_pattern: circular_dependency
+refactoring_strategy: extract_common
+complexity: medium
+framework: generic
+
+problem_description: |
+  Two modules import from each other because they share common
+  functionality. The shared code should be in a separate module
+  that both can import without creating a cycle.
+
+symptoms:
+  - Both modules use the same utility functions
+  - Shared constants or configurations
+  - Common base classes used by both
+  - Code duplication would occur without sharing
+
+solution_description: |
+  Identify the shared functionality and extract it into a new
+  "common" or "shared" module. Both original modules import from
+  the common module, creating a tree structure instead of a cycle.
+
+before_code: |
+  # orders.py
+  from customers import Customer, format_name  # Circular!
+  
+  class Order:
+      def __init__(self, customer: Customer):
+          self.customer = customer
+      
+      def summary(self):
+          return f"Order for {format_name(self.customer.name)}"
+  
+  # customers.py
+  from orders import Order  # Circular!
+  
+  def format_name(name):
+      return name.title()
+  
+  class Customer:
+      def __init__(self, name):
+          self.name = name
+      
+      def get_orders(self):
+          return Order.find_by_customer(self)
+
+after_code: |
+  # common.py (new shared module)
+  def format_name(name):
+      return name.title()
+  
+  # Base classes if needed
+  class BaseEntity:
+      pass
+  
+  # orders.py
+  from common import format_name
+  
+  class Order:
+      def __init__(self, customer):  # Type hint removed or use Protocol
+          self.customer = customer
+      
+      def summary(self):
+          return f"Order for {format_name(self.customer.name)}"
+  
+  # customers.py
+  from common import format_name
+  
+  class Customer:
+      def __init__(self, name):
+          self.name = name
+
+step_by_step:
+  - Identify shared code between circular modules
+  - Create a new common.py (or utils.py, shared.py)
+  - Move shared functions, constants, base classes to common
+  - Update imports in both modules to use common
+  - Remove direct imports between the modules
+  - Test that functionality is preserved
+
+naming_conventions:
+  - common.py - General shared code
+  - utils.py - Utility functions
+  - helpers.py - Helper functions
+  - base.py - Base classes
+  - constants.py - Shared constants
+  - types.py - Type definitions
+
+when_to_use:
+  - Clear shared functionality exists
+  - Extraction creates cleaner architecture
+  - Shared code is stable (won't change often)
+  - Multiple modules could benefit
+
+when_not_to_use:
+  - Would create "junk drawer" module
+  - Shared code is tightly coupled to one module
+  - Extraction is artificial
+
+keywords:
+  - common module
+  - shared utilities
+  - extract
+  - utils
+  - helpers
+  - base module

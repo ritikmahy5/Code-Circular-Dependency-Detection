@@ -1,0 +1,116 @@
+pattern_id: mixin_extraction
+title: Extract Mixin to Break Inheritance Cycle
+anti_pattern: circular_dependency
+refactoring_strategy: mixin
+complexity: medium
+framework: generic
+
+problem_description: |
+  Two classes inherit from each other or share functionality
+  that creates circular imports. The shared behavior could be
+  extracted into a mixin class.
+
+symptoms:
+  - Classes importing each other for inheritance
+  - Shared methods duplicated across classes
+  - Diamond inheritance problems
+  - Circular imports due to base classes
+
+solution_description: |
+  Extract shared functionality into a mixin class in a separate
+  module. Both original classes inherit from the mixin without
+  importing each other directly.
+
+before_code: |
+  # models/user.py
+  from models.auditable import AuditableMixin  # Ok
+  from models.order import Order  # Circular for type hint!
+  
+  class User(AuditableMixin):
+      orders: list[Order]
+      
+      def get_total_spent(self):
+          return sum(o.total for o in self.orders)
+  
+  # models/order.py
+  from models.auditable import AuditableMixin
+  from models.user import User  # Circular!
+  
+  class Order(AuditableMixin):
+      user: User
+      
+      def get_user_email(self):
+          return self.user.email
+
+after_code: |
+  # models/mixins.py (shared module)
+  class AuditableMixin:
+      created_at: datetime
+      updated_at: datetime
+      
+      def touch(self):
+          self.updated_at = datetime.now()
+  
+  class SerializableMixin:
+      def to_dict(self):
+          return {k: v for k, v in self.__dict__.items() 
+                  if not k.startswith('_')}
+  
+  # models/user.py (no order import)
+  from models.mixins import AuditableMixin, SerializableMixin
+  from typing import TYPE_CHECKING
+  
+  if TYPE_CHECKING:
+      from models.order import Order
+  
+  class User(AuditableMixin, SerializableMixin):
+      orders: list['Order']
+      
+      def get_total_spent(self):
+          return sum(o.total for o in self.orders)
+  
+  # models/order.py (no user import)
+  from models.mixins import AuditableMixin, SerializableMixin
+  from typing import TYPE_CHECKING
+  
+  if TYPE_CHECKING:
+      from models.user import User
+  
+  class Order(AuditableMixin, SerializableMixin):
+      user: 'User'
+      
+      def get_user_email(self):
+          return self.user.email
+
+step_by_step:
+  - Identify shared functionality between classes
+  - Create mixins.py in shared location
+  - Extract shared methods into mixin classes
+  - Use TYPE_CHECKING for type hints
+  - Update classes to inherit from mixins
+  - Remove circular imports
+
+mixin_best_practices:
+  - Mixins should be small and focused
+  - Name with Mixin suffix for clarity
+  - Avoid state in mixins when possible
+  - Use MRO (Method Resolution Order) carefully
+
+when_to_use:
+  - Shared behavior across unrelated classes
+  - Breaking inheritance cycles
+  - Composing functionality
+  - Cross-cutting concerns (logging, validation)
+
+when_not_to_use:
+  - Single class needs the behavior
+  - Inheritance is not appropriate
+  - Composition would be clearer
+
+keywords:
+  - mixin
+  - multiple inheritance
+  - composition
+  - code reuse
+  - cross-cutting concern
+  - shared behavior

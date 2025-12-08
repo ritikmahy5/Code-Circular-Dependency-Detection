@@ -1,0 +1,97 @@
+pattern_id: factory_pattern
+title: Use Factory to Break Creation Dependency
+anti_pattern: circular_dependency
+refactoring_strategy: factory
+complexity: medium
+framework: generic
+
+problem_description: |
+  Module A needs to create instances of classes from Module B,
+  requiring an import. Module B also needs something from A.
+  The dependency is specifically for object creation, not usage.
+
+symptoms:
+  - Import needed to instantiate a class
+  - Constructor calls cause the dependency
+  - Want to decouple creation from usage
+  - Need flexibility in which class gets created
+
+solution_description: |
+  Extract object creation into a factory module. The factory
+  knows how to create objects, and other modules use the factory
+  instead of importing classes directly. This centralizes
+  creation logic and breaks circular dependencies.
+
+before_code: |
+  # service.py
+  from models import User, Order  # Circular!
+  
+  class OrderService:
+      def create_order(self, user_id):
+          user = User.get(user_id)  # Direct instantiation
+          order = Order(user)
+          return order
+  
+  # models.py
+  from service import OrderService  # Circular!
+  
+  class User:
+      def get_orders(self):
+          return OrderService().get_orders(self.id)
+
+after_code: |
+  # factory.py (new)
+  def create_user(user_id):
+      from models import User
+      return User.get(user_id)
+  
+  def create_order(user):
+      from models import Order
+      return Order(user)
+  
+  def create_order_service():
+      from service import OrderService
+      return OrderService()
+  
+  # service.py (no model imports)
+  from factory import create_user, create_order
+  
+  class OrderService:
+      def create_order(self, user_id):
+          user = create_user(user_id)
+          order = create_order(user)
+          return order
+  
+  # models.py (no service imports)
+  from factory import create_order_service
+  
+  class User:
+      def get_orders(self):
+          service = create_order_service()
+          return service.get_orders(self.id)
+
+step_by_step:
+  - Identify classes being instantiated across module boundaries
+  - Create a factory module with creation functions
+  - Use lazy imports inside factory functions
+  - Replace direct instantiation with factory calls
+  - Remove circular imports from original modules
+
+when_to_use:
+  - Object creation causes circular dependencies
+  - Want to centralize creation logic
+  - Need to swap implementations easily
+  - Building a plugin or extension system
+
+when_not_to_use:
+  - Simple cases where lazy import suffices
+  - Would create too many factory functions
+  - Direct instantiation is conceptually correct
+
+keywords:
+  - factory
+  - factory method
+  - creation pattern
+  - dependency inversion
+  - instantiation
+  - object creation

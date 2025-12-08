@@ -1,0 +1,101 @@
+pattern_id: string_annotation
+title: Use String Annotations for Forward References
+anti_pattern: circular_dependency
+refactoring_strategy: string_annotation
+complexity: low
+framework: python3.7+
+
+problem_description: |
+  A type annotation requires importing a class that creates a
+  circular dependency. The import is only needed for the type
+  checker, not at runtime.
+
+symptoms:
+  - Type hints cause circular imports
+  - Using TYPE_CHECKING but want simpler solution
+  - Forward reference needed
+  - Python 3.7+ available
+
+solution_description: |
+  Use string annotations (quotes around type names) instead of
+  importing the actual class. Python's type checkers understand
+  string annotations and resolve them without runtime imports.
+  With `from __future__ import annotations`, all annotations
+  become strings automatically.
+
+before_code: |
+  # parent.py
+  from child import Child  # Circular import for type hint!
+  
+  class Parent:
+      def __init__(self):
+          self.children: list[Child] = []
+      
+      def add_child(self, child: Child):
+          self.children.append(child)
+  
+  # child.py
+  from parent import Parent  # Circular!
+  
+  class Child:
+      def __init__(self, parent: Parent):
+          self.parent = parent
+
+after_code: |
+  # parent.py (no import needed)
+  class Parent:
+      def __init__(self):
+          self.children: list['Child'] = []  # String annotation
+      
+      def add_child(self, child: 'Child'):  # String annotation
+          self.children.append(child)
+  
+  # child.py (no import needed)  
+  class Child:
+      def __init__(self, parent: 'Parent'):  # String annotation
+          self.parent = parent
+  
+  # --- OR use future annotations (Python 3.7+) ---
+  
+  # parent.py
+  from __future__ import annotations  # Makes ALL annotations strings
+  
+  class Parent:
+      def __init__(self):
+          self.children: list[Child] = []  # No quotes needed!
+      
+      def add_child(self, child: Child):
+          self.children.append(child)
+
+step_by_step:
+  - Identify type hints causing circular imports
+  - Option A: Wrap type names in quotes ('ClassName')
+  - Option B: Add `from __future__ import annotations` at top
+  - Remove the circular import
+  - Verify type checker still works (mypy, pyright)
+
+future_annotations:
+  - Add at top of file: `from __future__ import annotations`
+  - All annotations become strings automatically
+  - No runtime evaluation of annotations
+  - Default behavior in Python 3.11+
+
+when_to_use:
+  - Type hints are the only reason for import
+  - Simple forward reference needed
+  - Don't need runtime access to the type
+  - Quick fix without restructuring
+
+when_not_to_use:
+  - Need isinstance() checks with the type
+  - Need to instantiate the class
+  - Need runtime type introspection
+  - Using Python < 3.7
+
+keywords:
+  - string annotation
+  - forward reference
+  - PEP 563
+  - future annotations
+  - type hint
+  - postponed evaluation
