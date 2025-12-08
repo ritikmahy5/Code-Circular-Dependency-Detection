@@ -798,8 +798,31 @@ with tab2:
                     # Show code context button
                     if st.button(f"View Code Context", key=f"code_{i}"):
                         st.markdown("### 📝 Code Context")
-                        # This would show actual code from the modules
-                        st.code("# Code preview would go here", language="python")
+                        
+                        # Show actual code from the cycle files
+                        for module_path in cycle['modules'][:3]:  # Show first 3 files to avoid clutter
+                            file_path = Path(st.session_state.project_path) / module_path if 'project_path' in st.session_state else Path(module_path)
+                            
+                            if file_path.exists():
+                                st.markdown(f"**File: `{module_path}`**")
+                                try:
+                                    with open(file_path, 'r') as f:
+                                        code_content = f.read()
+                                    
+                                    # Show just the imports section (first 20 lines or until first class/function)
+                                    lines = code_content.split('\n')
+                                    import_section = []
+                                    for line in lines[:30]:  # Check first 30 lines
+                                        import_section.append(line)
+                                        if line.strip().startswith('class ') or line.strip().startswith('def '):
+                                            import_section.append("# ... rest of file ...")
+                                            break
+                                    
+                                    st.code('\n'.join(import_section), language="python")
+                                except Exception as e:
+                                    st.error(f"Could not read file: {e}")
+                            else:
+                                st.warning(f"File not found: {module_path}")
 
 # Tab 3: Visualization
 with tab3:
