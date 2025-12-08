@@ -47,7 +47,12 @@ class OllamaLLM(BaseLLM):
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{self.host}/api/tags")
                 return response.status_code == 200
-        except:
+        except (httpx.ConnectError, httpx.TimeoutException):
+            # Expected when Ollama is not running
+            return False
+        except Exception as e:
+            # Unexpected error - log it for debugging
+            print(f"Error checking Ollama status: {e}")
             return False
     
     async def list_models(self) -> list[str]:
@@ -57,5 +62,10 @@ class OllamaLLM(BaseLLM):
                 response = await client.get(f"{self.host}/api/tags")
                 data = response.json()
                 return [m["name"] for m in data.get("models", [])]
-        except:
+        except (httpx.ConnectError, httpx.TimeoutException):
+            # Expected when Ollama is not running
+            return []
+        except Exception as e:
+            # Unexpected error - log it
+            print(f"Error listing Ollama models: {e}")
             return []

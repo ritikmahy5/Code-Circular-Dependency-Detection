@@ -95,8 +95,10 @@ class DualKnowledgeRAG:
             # Clear existing and add new
             try:
                 self.code_collection.delete(where={})
-            except:
-                pass
+            except Exception as e:
+                # ChromaDB might not be initialized or collection doesn't exist
+                # This is acceptable - we'll create fresh collection
+                print(f"Note: Could not clear code collection: {e}")
             
             self.code_collection.add(
                 ids=[c.chunk_id for c in chunks],
@@ -122,8 +124,9 @@ class DualKnowledgeRAG:
         if self.use_chroma:
             try:
                 self.pattern_collection.delete(where={})
-            except:
-                pass
+            except Exception as e:
+                # ChromaDB might not be initialized or collection doesn't exist
+                print(f"Note: Could not clear pattern collection: {e}")
             
             self.pattern_collection.add(
                 ids=[p.pattern_id for p in patterns],

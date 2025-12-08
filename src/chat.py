@@ -23,11 +23,20 @@ class CodebaseChat:
         self.cycles = self.analyzer.find_all_cycles()
         self.chunker = StructureAwareChunker()
         self.chunks = []
+        failed_files = []
         for fp in project_path.rglob("*.py"):
             try:
                 self.chunks.extend(self.chunker.chunk_file(fp))
-            except:
-                pass
+            except (SyntaxError, UnicodeDecodeError):
+                # Expected errors for malformed files - track but continue
+                failed_files.append(str(fp.name))
+            except Exception as e:
+                # Unexpected errors - log with warning
+                self.console.print(f"[yellow]Warning: Could not chunk {fp.name}: {e}[/yellow]")
+        
+        if failed_files:
+            self.console.print(f"[dim]Skipped {len(failed_files)} files with parsing errors[/dim]")
+        
         self.rag = DualKnowledgeRAG(use_chroma=False)
         self.rag.index_code_chunks(self.chunks)
         patterns_dir = Path(__file__).parent.parent / "knowledge_base" / "patterns"
@@ -42,7 +51,12 @@ class CodebaseChat:
 
     async def ask(self, question: str) -> str:
         ctx = self.rag.retrieve(query=question, n_code=5, n_patterns=2)
-        prompt = f"Codebase: {self.project_path}\n{self._get_summary()}\n\nQuestion: {question}"
+        prompt = f"""Codebase: {self.project_path}
+{self._get_summary()}
+
+{ctx.to_prompt()}
+
+Question: {question}"""
         resp = await self.llm.generate(prompt, system="You are a code analyst expert.")
         return resp.content
 

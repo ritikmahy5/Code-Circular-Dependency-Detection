@@ -1023,7 +1023,9 @@ with tab2:
                                         
                                         github_file_url = f"{st.session_state.github_url}/blob/main/{rel_path}"
                                         st.markdown(f"**File: [{module_path}]({github_file_url})** 📎")
-                                    except:
+                                    except (ValueError, AttributeError):
+                                        # ValueError: path not relative to project_path
+                                        # AttributeError: file_path or project_path is None
                                         st.markdown(f"**File: `{module_path}`**")
                                 else:
                                     st.markdown(f"**File: `{module_path}`** (local)")
@@ -1046,7 +1048,8 @@ with tab2:
                                                     rel_path = file_path.name
                                                 line_url = f"{st.session_state.github_url}/blob/main/{rel_path}#L{line_num}"
                                                 import_section.append(f"# [L{line_num}]({line_url})")
-                                            except:
+                                            except (ValueError, AttributeError):
+                                                # Can't build line URL, skip it
                                                 pass
                                         import_section.append(line)
                                         line_num += 1
