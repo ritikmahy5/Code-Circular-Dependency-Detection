@@ -51,15 +51,14 @@ class EmbeddingModel:
                 pass
             return "cpu"
         
-        # Auto mode - GPU-only: require CUDA, fail if not available
+        # Auto mode - prefer CPU for stability
         try:
             import torch
             if torch.cuda.is_available():
                 return "cuda"
-            else:
-                raise RuntimeError("CUDA is not available. GPU is required for this deployment.")
         except ImportError:
-            raise RuntimeError("PyTorch is not installed. GPU support requires PyTorch with CUDA.")
+            pass
+        return "cpu"
     
     @property
     def model(self):
@@ -68,14 +67,18 @@ class EmbeddingModel:
             try:
                 from sentence_transformers import SentenceTransformer
                 
-                # Load model directly on target device for better performance
+                # Load model on target device
                 print(f"Loading embedding model: {self.model_name} on {self.device}...")
-                # GPU-only: load directly on GPU, fail if not available
-                if self.device != "cuda":
-                    raise RuntimeError(f"GPU (CUDA) is required, but device is set to {self.device}")
-                
-                self._model = SentenceTransformer(self.model_name, device="cuda")
-                print(f"✅ Embedding model loaded on CUDA (GPU)")
+                try:
+                    # Try loading on target device
+                    self._model = SentenceTransformer(self.model_name, device=self.device)
+                    print(f"✅ Embedding model loaded on {self.device}")
+                except Exception as e:
+                    # Fallback to CPU if GPU loading fails
+                    print(f"⚠️ Could not load on {self.device}, falling back to CPU: {e}")
+                    self.device = "cpu"
+                    self._model = SentenceTransformer(self.model_name, device="cpu")
+                    print(f"✅ Embedding model loaded on CPU")
                     
             except Exception as e:
                 raise RuntimeError(f"Failed to load embedding model: {e}")
@@ -108,8 +111,7 @@ class EmbeddingModel:
             texts, 
             convert_to_numpy=True,
             batch_size=batch_size,
-            show_progress_bar=show_progress,
-            device=self.device  # Explicitly use the device
+            show_progress_bar=show_progress
         )
     
     def encode_single(self, text: str) -> np.ndarray:
