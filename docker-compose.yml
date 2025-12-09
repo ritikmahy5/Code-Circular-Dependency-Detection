@@ -1,5 +1,5 @@
 services:
-  # Ollama service (optional - for LLM features)
+  # Ollama service with GPU support (NVIDIA T4)
   ollama:
     image: ollama/ollama:latest
     container_name: cdd-ollama
@@ -7,7 +7,17 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    # Health check using wget (available in Ollama image) or remove if not needed
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    # Health check using wget (available in Ollama image)
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:11434/api/tags || exit 1"]
       interval: 30s
@@ -31,6 +41,15 @@ services:
       - OLLAMA_HOST=http://ollama:11434
       - ENVIRONMENT=production
       - PYTHONUNBUFFERED=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     volumes:
       # Optional: Mount project directories if needed
       - ./project_to_analyze:/app/project_to_analyze:ro

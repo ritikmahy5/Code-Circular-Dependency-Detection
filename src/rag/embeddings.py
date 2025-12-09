@@ -51,13 +51,15 @@ class EmbeddingModel:
                 pass
             return "cpu"
         
-        # Auto mode - prefer CPU for stability
+        # Auto mode - prefer CUDA (GPU) if available for performance
         try:
             import torch
             if torch.cuda.is_available():
+                print(f"🚀 GPU detected: {torch.cuda.get_device_name(0)}")
                 return "cuda"
         except ImportError:
             pass
+        print("💻 Using CPU (no GPU detected)")
         return "cpu"
     
     @property
@@ -101,9 +103,12 @@ class EmbeddingModel:
             return np.array([])
         
         # Optimize batch size for GPU (larger batches = better GPU utilization)
+        # T4 GPU can handle larger batches efficiently
         if batch_size is None:
             if self.device == "cuda":
-                batch_size = 128  # Larger batches for GPU
+                batch_size = 256  # Larger batches for T4 GPU (was 128)
+            elif self.device == "mps":
+                batch_size = 64
             else:
                 batch_size = 32   # Smaller batches for CPU
         

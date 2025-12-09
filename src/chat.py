@@ -65,10 +65,11 @@ class CodebaseChat:
         
         if use_persistent_db:
             try:
+                self.console.print("[yellow]⚠️ Loading 42k knowledge base - this may take 2-5 minutes on GCP...[/yellow]")
                 self.rag = create_rag_with_persistent_db(
                     use_chroma=False,
                     load_patterns=True,
-                    max_chunks=5000,  # Reduced for speed
+                    max_chunks=1000,  # Further reduced for GCP speed (was 5000, then 2000)
                 )
             except Exception as e:
                 self.console.print(f"[yellow]Warning: Could not load persistent DB: {e}[/yellow]")

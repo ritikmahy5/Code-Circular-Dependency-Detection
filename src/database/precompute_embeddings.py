@@ -47,8 +47,8 @@ def precompute_embeddings(db_path: Path = None, batch_size: int = None):
     # Auto-optimize batch size based on device
     if batch_size is None:
         if encoder.device == "cuda":
-            batch_size = 1000  # Large batches for GPU
-            logger.info("🚀 Using GPU acceleration with batch size 1000")
+            batch_size = 2000  # Very large batches for T4 GPU (was 1000)
+            logger.info("🚀 Using T4 GPU acceleration with batch size 2000")
         else:
             batch_size = 500   # Moderate batches for CPU
             logger.info("💻 Using CPU with batch size 500")

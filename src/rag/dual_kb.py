@@ -128,7 +128,7 @@ class DualKnowledgeRAG:
         load_persistent_db: bool = True,
         max_persistent_chunks: int = 0,  # 0 = load ALL chunks (42,660)
     ):
-        # Use CPU for stability (auto-detect GPU if available)
+        # Auto-detect GPU (CUDA) if available, use GPU for T4 acceleration
         self.encoder = EmbeddingModel(device="auto")
         self.persist_dir = persist_dir
         self.use_chroma = use_chroma
@@ -202,10 +202,17 @@ class DualKnowledgeRAG:
                 self.stats["persistent_chunks_available"] = metadata.get('num_chunks', 0)
                 print(f"📚 Found persistent database: {metadata.get('num_chunks', 0):,} chunks from {metadata.get('repo_url', 'unknown')}")
             
-            # Load chunks
+            # Load chunks (with progress for large files)
             print(f"Loading code chunks from persistent database...")
+            import sys
+            file_size = chunks_file.stat().st_size / (1024 * 1024)  # Size in MB
+            if file_size > 50:  # Large file, show progress
+                print(f"  File size: {file_size:.1f} MB - this may take a moment on GCP...")
+            
             with open(chunks_file, 'rb') as f:
                 all_chunks = pickle.load(f)
+            
+            print(f"  Loaded {len(all_chunks):,} chunks from disk")
             
             if not all_chunks:
                 logger.warning("Persistent database is empty")
@@ -227,6 +234,10 @@ class DualKnowledgeRAG:
             # Try to load pre-computed embeddings
             if embeddings_file.exists():
                 print(f"Loading pre-computed embeddings...")
+                emb_size = embeddings_file.stat().st_size / (1024 * 1024)  # Size in MB
+                if emb_size > 50:
+                    print(f"  Embedding file size: {emb_size:.1f} MB - loading...")
+                
                 with open(embeddings_file, 'rb') as f:
                     saved_embeddings = pickle.load(f)
                 
@@ -261,10 +272,22 @@ class DualKnowledgeRAG:
     def _ensure_persistent_embeddings(self):
         """Compute embeddings for persistent chunks if not already loaded."""
         if self._persistent_chunks and not self._persistent_embeddings:
-            print(f"Computing embeddings for {len(self._persistent_chunks):,} persistent chunks...")
-            texts = [c.to_embedding_text() for c in self._persistent_chunks]
-            embeddings = self.encoder.encode(texts)
+            # Limit embedding computation to avoid timeout on GCP
+            max_embeddings = 5000  # Limit to prevent timeout
+            chunks_to_embed = self._persistent_chunks[:max_embeddings] if len(self._persistent_chunks) > max_embeddings else self._persistent_chunks
+            
+            if len(chunks_to_embed) < len(self._persistent_chunks):
+                print(f"⚠️ Computing embeddings for {len(chunks_to_embed):,} chunks (limited from {len(self._persistent_chunks):,} for speed)...")
+            else:
+                print(f"Computing embeddings for {len(chunks_to_embed):,} persistent chunks...")
+            
+            texts = [c.to_embedding_text() for c in chunks_to_embed]
+            embeddings = self.encoder.encode(texts, show_progress=True)
             self._persistent_embeddings = embeddings.tolist()
+            
+            # Pad with empty embeddings for remaining chunks (they'll be computed on-demand)
+            if len(chunks_to_embed) < len(self._persistent_chunks):
+                self._persistent_embeddings.extend([[]] * (len(self._persistent_chunks) - len(chunks_to_embed)))
             
             # Save for future use
             embeddings_file = self.DEFAULT_PERSISTENT_DB / "code_embeddings.pkl"
