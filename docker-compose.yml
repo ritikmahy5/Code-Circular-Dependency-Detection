@@ -7,12 +7,13 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    # Health check using wget (available in Ollama image) or remove if not needed
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:11434/api/tags || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     restart: unless-stopped
 
   # Main application (Streamlit web app)
@@ -23,7 +24,7 @@ services:
     container_name: cdd-app
     depends_on:
       ollama:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8501:8501"  # Expose Streamlit port
     environment:
