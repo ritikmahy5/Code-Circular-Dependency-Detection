@@ -1,19 +1,21 @@
 # Use CUDA-enabled base image for GPU support
 FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
 
-# Install Python 3.11
+# Install Python 3.11 and ensure it's the default
 RUN apt-get update && apt-get install -y \
     python3.11 \
     python3.11-dev \
-    python3-pip \
+    python3.11-distutils \
     git \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create symlinks for python and pip (remove existing if they exist)
-RUN rm -f /usr/bin/python /usr/bin/pip && \
+# Install pip for Python 3.11 and set up symlinks
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 && \
+    rm -f /usr/bin/python /usr/bin/pip && \
     ln -s /usr/bin/python3.11 /usr/bin/python && \
-    ln -s /usr/bin/pip3 /usr/bin/pip
+    ln -s /usr/local/bin/pip3.11 /usr/bin/pip || \
+    ln -s $(python3.11 -m pip --version | awk '{print $NF}' | xargs dirname)/pip /usr/bin/pip
 
 WORKDIR /app
 
@@ -24,12 +26,21 @@ ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 # Copy requirements first for better Docker layer caching
 COPY requirements.txt .
 
-# Install PyTorch with CUDA support first (from PyTorch index for better compatibility)
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu121 \
+# Upgrade pip to latest version (fixes resolver issues)
+RUN python3.11 -m pip install --upgrade pip setuptools wheel
+
+# Install PyTorch with CUDA support first (from PyTorch index)
+RUN python3.11 -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu121 \
     torch torchvision torchaudio
 
-# Install remaining requirements (GPU-only, no fallback)
-RUN pip install --no-cache-dir -r requirements.txt
+# Install faiss-gpu separately first (GPU-only, avoids dependency resolver issues)
+RUN python3.11 -m pip install --no-cache-dir faiss-gpu==1.7.2
+
+# Install remaining requirements (excluding faiss-gpu and torch which are already installed)
+# Create filtered requirements file to avoid resolver issues
+RUN grep -v "^faiss" requirements.txt | grep -v "^torch" | grep -v "^#" | grep -v "^$" > /tmp/requirements_filtered.txt && \
+    python3.11 -m pip install --no-cache-dir -r /tmp/requirements_filtered.txt && \
+    rm /tmp/requirements_filtered.txt
 
 # Copy application code
 COPY src/ ./src/
@@ -40,7 +51,7 @@ COPY setup.py .
 # Note: lib/ directory not needed - visualization uses CDN links
 
 # Install the package in development mode
-RUN pip install -e .
+RUN python3.11 -m pip install -e .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
