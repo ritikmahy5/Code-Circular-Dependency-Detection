@@ -6,6 +6,8 @@ import json
 import pickle
 import logging
 import hashlib
+import random
+import numpy as np
 
 from .embeddings import EmbeddingModel
 from ..parser.chunker import CodeChunk
@@ -61,7 +63,7 @@ No specific patterns matched. Use general software engineering best practices.""
     def to_streamlit_display(
         self, 
         github_url: Optional[str] = None, 
-        cdd_github_url: str = "https://github.com/your-repo/Code-Circular-Dependency-Detection"
+        cdd_github_url: str = "https://github.com/ritikmahy5/Code-Circular-Dependency-Detection"
     ) -> str:
         """Generate display for Streamlit with proper citations."""
         output = []
@@ -75,19 +77,61 @@ No specific patterns matched. Use general software engineering best practices.""
             output.append("<ul>")
             for chunk in self.code_chunks:
                 file_path_str = str(chunk.file_path)
-                if "django" in file_path_str.lower():
-                    django_url = f"https://github.com/django/django/blob/main/{chunk.file_path}#L{chunk.start_line}-L{chunk.end_line}"
-                    link_text = f"{Path(chunk.file_path).name} (Lines {chunk.start_line}-{chunk.end_line})"
+                
+                # Check if this is from persistent DB (Django KB)
+                if chunk.source == 'persistent_db' or "django" in file_path_str.lower():
+                    # Extract clean Django path from the file_path
+                    # Handle paths like "/var/folders/.../T/tmpXXX/repo/tests/..." -> "tests/..."
+                    if "/repo/" in file_path_str:
+                        # Extract everything after "/repo/"
+                        clean_path = file_path_str.split("/repo/")[-1]
+                    elif "django" in file_path_str.lower():
+                        # Find the 'django' part and everything after it
+                        django_path_parts = file_path_str.split('django')
+                        if len(django_path_parts) > 1:
+                            clean_path = 'django' + django_path_parts[-1]
+                            clean_path = clean_path.lstrip('/')
+                        else:
+                            clean_path = file_path_str
+                    else:
+                        clean_path = file_path_str
+                    
+                    django_url = f"https://github.com/django/django/blob/main/{clean_path}#L{chunk.start_line}-L{chunk.end_line}"
+                    link_text = f"{Path(clean_path).name} (Lines {chunk.start_line}-{chunk.end_line})"
                     output.append(f'<li><a href="{django_url}" target="_blank">📄 {link_text}</a> <em>(Django KB)</em></li>')
                 elif github_url:
+                    # User project chunk - need to extract relative path
                     try:
-                        line_link = f"{github_url}/blob/main/{chunk.file_path}#L{chunk.start_line}-L{chunk.end_line}"
-                        link_text = f"{Path(chunk.file_path).name} (Lines {chunk.start_line}-{chunk.end_line})"
+                        # Extract relative path from repo root
+                        # Handle paths like: /var/folders/.../repo_123/scipy/sparse/_dok.py -> scipy/sparse/_dok.py
+                        relative_path = file_path_str
+                        
+                        # Common patterns to extract relative path
+                        if "/repo_" in file_path_str:
+                            # Pattern: .../repo_TIMESTAMP/actual/path
+                            parts = file_path_str.split("/repo_")
+                            if len(parts) > 1:
+                                # Get everything after the repo directory
+                                after_repo = parts[1].split("/", 1)
+                                if len(after_repo) > 1:
+                                    relative_path = after_repo[1]
+                        elif "/extracted/" in file_path_str:
+                            # Pattern: .../extracted/actual/path
+                            relative_path = file_path_str.split("/extracted/", 1)[-1]
+                        elif "/clone/" in file_path_str:
+                            # Pattern: .../clone/actual/path
+                            relative_path = file_path_str.split("/clone/", 1)[-1]
+                        
+                        # Build clean GitHub URL
+                        line_link = f"{github_url}/blob/main/{relative_path}#L{chunk.start_line}-L{chunk.end_line}"
+                        link_text = f"{Path(relative_path).name} (Lines {chunk.start_line}-{chunk.end_line})"
                         output.append(f'<li><a href="{line_link}" target="_blank">📄 {link_text}</a></li>')
-                    except (ValueError, AttributeError):
-                        output.append(f"<li>📄 {chunk.file_path} (Lines {chunk.start_line}-{chunk.end_line})</li>")
+                    except (ValueError, AttributeError) as e:
+                        # Fallback to plain text if something goes wrong
+                        output.append(f"<li>📄 {Path(file_path_str).name} (Lines {chunk.start_line}-{chunk.end_line})</li>")
                 else:
-                    output.append(f"<li>📄 {chunk.file_path} (Lines {chunk.start_line}-{chunk.end_line})</li>")
+                    # No GitHub URL available, show plain text
+                    output.append(f"<li>📄 {Path(file_path_str).name} (Lines {chunk.start_line}-{chunk.end_line})</li>")
             output.append("</ul>")
 
         if self.refactoring_patterns:
@@ -145,6 +189,9 @@ class DualKnowledgeRAG:
         self._patterns: list[RefactoringPattern] = []
         self._pattern_embeddings: list[list[float]] = []
         
+        # Metadata
+        self.metadata = {}
+        
         # Stats
         self.stats = {
             "persistent_chunks_available": 0,
@@ -198,20 +245,19 @@ class DualKnowledgeRAG:
             # Load metadata
             if metadata_file.exists():
                 with open(metadata_file, 'r') as f:
-                    metadata = json.load(f)
-                self.stats["persistent_chunks_available"] = metadata.get('num_chunks', 0)
-                print(f"📚 Found persistent database: {metadata.get('num_chunks', 0):,} chunks from {metadata.get('repo_url', 'unknown')}")
+                    self.metadata = json.load(f)
+                self.stats["persistent_chunks_available"] = self.metadata.get('num_chunks', 0)
+                print(f"📚 Found persistent database: {self.metadata.get('num_chunks', 0):,} chunks from {self.metadata.get('repo_url', 'unknown')}")
             
             # Load chunks
             print(f"Loading code chunks from persistent database...")
             with open(chunks_file, 'rb') as f:
                 all_chunks = pickle.load(f)
             
-            if not all_chunks:
-                logger.warning("Persistent database is empty")
-                return False
-            
-            # Load chunks (0 = all, otherwise limit)
+            # Set the source for each chunk
+            for chunk in all_chunks:
+                chunk.source = "persistent_db"
+
             if self.max_persistent_chunks > 0 and len(all_chunks) > self.max_persistent_chunks:
                 # Sample diverse chunks (every Nth chunk)
                 step = len(all_chunks) // self.max_persistent_chunks
@@ -309,29 +355,26 @@ class DualKnowledgeRAG:
     def get_stats(self) -> dict:
         """Get database statistics."""
         return {
-            "persistent_chunks_available": self.stats["persistent_chunks_available"],
+            "persistent_chunks_available": self.metadata.get('num_chunks', 0) if self.metadata else 0,
             "persistent_chunks_loaded": len(self._persistent_chunks),
             "user_chunks": len(self._user_chunks),
             "total_code_chunks": len(self._persistent_chunks) + len(self._user_chunks),
             "patterns": len(self._patterns),
-            "total_entries": len(self._persistent_chunks) + len(self._user_chunks) + len(self._patterns),
+            "total_entries": len(self._persistent_chunks) + len(self._user_chunks) + len(self._patterns)
         }
-    
+
     def retrieve(
         self, 
         query: str,
-        file_filter: Optional[list[str]] = None,
         n_code: int = 5,
         n_patterns: int = 3,
-        min_from_kb: int = 2,  # Ensure at least N results from knowledge base
+        min_from_kb: int = 0,  # Ensure at least N results from knowledge base
     ) -> RAGContext:
         """Retrieve relevant context for a query.
         
         Searches BOTH user project chunks AND persistent knowledge base,
         ensuring diversity in sources for better citations.
         """
-        import numpy as np
-        
         query_embedding = self.encoder.encode_single(query)
         
         # Ensure persistent embeddings are computed
@@ -347,70 +390,79 @@ class DualKnowledgeRAG:
         # Search user chunks
         if self._user_chunks and self._user_embeddings:
             user_scores = self._get_similarity_scores(query_embedding, self._user_embeddings)
-            user_indexed = [(i, score) for i, score in enumerate(user_scores)
-                           if file_filter is None or self._user_chunks[i].file_path in file_filter]
-            user_indexed.sort(key=lambda x: -x[1])
-            user_results = [(self._user_chunks[i], score, 'user') for i, score in user_indexed]
+            user_indexed = [(score, self._user_chunks[i]) for i, score in enumerate(user_scores)]
+            user_indexed.sort(key=lambda x: -x[0])  # Sort by score descending
+            user_results = user_indexed
         
         # Search persistent chunks
         if self._persistent_chunks and self._persistent_embeddings:
             persistent_scores = self._get_similarity_scores(query_embedding, self._persistent_embeddings)
-            persistent_indexed = [(i, score) for i, score in enumerate(persistent_scores)]
-            persistent_indexed.sort(key=lambda x: -x[1])
-            persistent_results = [(self._persistent_chunks[i], score, 'persistent') for i, score in persistent_indexed]
+            persistent_indexed = [(score, self._persistent_chunks[i]) for i, score in enumerate(persistent_scores)]
+            persistent_indexed.sort(key=lambda x: -x[0])  # Sort by score descending
+            persistent_results = persistent_indexed
         
-        # Ensure diversity: take min_from_kb from knowledge base, rest from user
-        final_results = []
+        # Combine and select the best results with diversity
+        final_code_chunks = []
         
-        # First, guarantee some from knowledge base (if available)
-        kb_to_add = min(min_from_kb, len(persistent_results))
-        final_results.extend(persistent_results[:kb_to_add])
-        
-        # Then fill remaining slots with best from user project
-        remaining = n_code - len(final_results)
-        final_results.extend(user_results[:remaining])
-        
-        # Sort final results by score for consistent ordering
-        final_results.sort(key=lambda x: -x[1])
-        
-        # Separate into chunks and count sources
-        code_chunks = [r[0] for r in final_results]
-        from_user = sum(1 for r in final_results if r[2] == 'user')
-        from_persistent = sum(1 for r in final_results if r[2] == 'persistent')
-        
-        print(f"[RAG] Retrieved: {from_user} from user, {from_persistent} from knowledge base")
-        
-        # Retrieve patterns
-        patterns = []
+        # Ensure minimum from knowledge base if requested
+        if min_from_kb > 0 and persistent_results:
+            num_to_add = min(min_from_kb, len(persistent_results))
+            final_code_chunks.extend([chunk for score, chunk in persistent_results[:num_to_add]])
+            # Remove these from persistent_results to avoid duplication
+            persistent_results = persistent_results[num_to_add:]
+
+        # Combine remaining results and sort globally by score
+        combined_results = user_results + persistent_results
+        combined_results.sort(key=lambda x: -x[0])  # Sort by score descending
+
+        # Add remaining chunks until we reach n_code
+        remaining_needed = n_code - len(final_code_chunks)
+        for score, chunk in combined_results[:remaining_needed]:
+            if chunk not in final_code_chunks:
+                final_code_chunks.append(chunk)
+
+        # Pattern retrieval
+        pattern_results = []
         if self._patterns and self._pattern_embeddings:
-            patterns = self._similarity_search(
-                query_embedding,
-                self._patterns,
-                self._pattern_embeddings,
-                n_patterns,
-            )
-        
+            pattern_scores = self._get_similarity_scores(query_embedding, self._pattern_embeddings)
+            pattern_results = sorted(zip(pattern_scores, self._patterns), key=lambda x: -x[0])
+            final_patterns = [pattern for score, pattern in pattern_results[:n_patterns]]
+        else:
+            final_patterns = []
+
+        # Count sources
+        from_user = sum(1 for chunk in final_code_chunks if chunk.source == 'user')
+        from_kb = sum(1 for chunk in final_code_chunks if chunk.source == 'persistent_db')
+
+        print(f"[RAG] Retrieved: {from_user} from user, {from_kb} from knowledge base")
+
         return RAGContext(
-            code_chunks=code_chunks,
-            refactoring_patterns=patterns,
-            from_persistent_db=from_persistent,
+            code_chunks=final_code_chunks,
+            refactoring_patterns=final_patterns,
             from_user_project=from_user,
+            from_persistent_db=from_kb
         )
-    
-    def _get_similarity_scores(self, query_embedding, embeddings: list) -> list:
-        """Get similarity scores for all embeddings."""
-        import numpy as np
-        
-        if not embeddings:
+
+    def _get_similarity_scores(self, query_embedding: list[float], chunk_embeddings: list[list[float]]) -> list[float]:
+        """Calculates cosine similarity between a query and a list of chunk embeddings."""
+        if not chunk_embeddings:
             return []
         
-        query_np = np.array(query_embedding)
-        embeddings_np = np.array(embeddings)
+        # Convert to numpy for efficient computation
+        query_np = np.array(query_embedding, dtype=np.float32)
+        chunk_np = np.array(chunk_embeddings, dtype=np.float32)
+
+        # Normalize vectors
+        query_norm = query_np / np.linalg.norm(query_np)
+        chunk_norms = np.linalg.norm(chunk_np, axis=1)
         
-        # Cosine similarity
-        norms = np.linalg.norm(embeddings_np, axis=1) * np.linalg.norm(query_np)
-        norms = np.where(norms == 0, 1e-10, norms)  # Avoid division by zero
-        similarities = np.dot(embeddings_np, query_np) / norms
+        # Avoid division by zero for zero-length vectors
+        chunk_norms[chunk_norms == 0] = 1e-9
+        
+        normalized_chunks = chunk_np / chunk_norms[:, np.newaxis]
+        
+        # Compute cosine similarity (dot product of normalized vectors)
+        similarities = np.dot(normalized_chunks, query_norm)
         
         return similarities.tolist()
     

@@ -47,7 +47,7 @@
 │                  (src/parser/chunker.py)                                    │
 │                                                                             │
 │  • Create semantic chunks preserving context                                │
-│  • Chunk by: Module, Class, Method, Function                               │
+│  • Chunk by: Module, Class, Method, Function                                │
 │  • Include docstrings and signatures                                        │
 │  • Maintain parent-child relationships                                      │
 │  • Average: 14.8 chunks per file                                            │
@@ -63,7 +63,7 @@
 │  • Build NetworkX directed graph                                            │
 │  • Nodes = Python modules                                                   │
 │  • Edges = import relationships                                             │
-│  • Store edge metadata (import type, location)                             │
+│  • Store edge metadata (import type, location)                              │
 │  • Performance: ~1ms for typical projects                                   │
 │                                                                             │
 └────────┬────────────────────────────────────────────────────────────────────┘
@@ -89,9 +89,9 @@
 │                     SEVERITY SCORER                                         │
 │                  (src/scoring/severity.py)                                  │
 │                                                                             │
-│  • Classify cycles: Critical, High, Medium, Low                            │
-│  • Factor in: cycle length, centrality, coupling                           │
-│  • Reduce severity for TYPE_CHECKING imports                               │
+│  • Classify cycles: Critical, High, Medium, Low                             │
+│  • Factor in: cycle length, centrality, coupling                            │
+│  • Reduce severity for TYPE_CHECKING imports                                │
 │  • Reduce severity for local imports                                        │
 │  • Prioritize by impact and effort                                          │
 │                                                                             │

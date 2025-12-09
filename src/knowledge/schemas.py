@@ -2,6 +2,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
+from pathlib import Path
 
 
 class AntiPatternType(Enum):
@@ -143,3 +144,16 @@ Keywords: {', '.join(self.keywords)}
             "keywords": self.keywords,
             "source_file": self.source_file,  # Include for citation tracking
         }
+
+
+@dataclass
+class CodeChunk:
+    file_path: Path
+    start_line: int
+    end_line: int
+    content: str
+    chunk_type: str  # 'import', 'class', 'function', 'standalone'
+    source: str = "user"  # 'user' or 'persistent_db'
+
+    def __repr__(self):
+        return f"CodeChunk({self.file_path}, {self.start_line}-{self.end_line}, type={self.chunk_type}, source={self.source})"

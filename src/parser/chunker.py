@@ -48,6 +48,9 @@ class CodeChunk:
     # Context for embedding
     context_header: str = ""
     
+    # Source tracking for RAG
+    source: str = "user"  # 'user' or 'persistent_db'
+    
     def to_embedding_text(self) -> str:
         """Generate text for embedding."""
         parts = [self.context_header]
