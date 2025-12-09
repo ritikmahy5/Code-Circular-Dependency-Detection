@@ -8,7 +8,7 @@ def get_llm(env: str | None = None) -> BaseLLM:
     """Get an LLM instance based on environment.
     
     Args:
-        env: Environment name ('local', 'gcp', 'dev'). 
+        env: Environment name ('local', 'gcp', 'production', 'dev'). 
              If None, uses ENVIRONMENT env var.
     
     Returns:
@@ -17,7 +17,7 @@ def get_llm(env: str | None = None) -> BaseLLM:
     if env is None:
         env = os.getenv("ENVIRONMENT", "local")
     
-    if env in ("local", "gcp"):
+    if env in ("local", "gcp", "production"):
         return OllamaLLM(
             model=os.getenv("OLLAMA_MODEL", "codellama:13b"),
             host=os.getenv("OLLAMA_HOST", "http://localhost:11434"),

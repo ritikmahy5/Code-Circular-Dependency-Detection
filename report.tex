@@ -8,7 +8,7 @@
 
 \author{
     \textbf{Karan Kendre, Ritik Mahyavanshi, Atharva Dhumal, Akshay Prajapati} \\ 
-    \href{https://github.com/your-repo/Code-Circular-Dependency-Detection}{PROJECT GIT REPOSITORY}
+    \href{https://github.com/ritikmahy5/Code-Circular-Dependency-Detection}{PROJECT GIT REPOSITORY}
 }% INFORMATION
 
 \begin{document}
@@ -51,7 +51,7 @@ Our data consists of two primary sources:
 
 \textbf{Test Fixtures}: For evaluation, we use test fixtures in \texttt{tests/fixtures/} containing simple\_cycle (2-file bidirectional cycle), complex\_cycle (3-file cycle), and type\_checking\_cycle (cycle using TYPE\_CHECKING guards). These fixtures are included in the repository and can be used for validation and benchmarking.
 
-\textbf{Data Access}: The code data is provided by users analyzing their own projects. The refactoring patterns are included in the repository at \texttt{knowledge\_base/patterns/}. Users can extend the pattern library by adding YAML files following the schema defined in \texttt{src/knowledge/schemas.py}. Test fixtures are available in \texttt{tests/fixtures/} for validation. The complete repository is available at: \href{https://github.com/your-repo/Code-Circular-Dependency-Detection}{Repository Link}
+\textbf{Data Access}: The code data is provided by users analyzing their own projects. The refactoring patterns are included in the repository at \texttt{knowledge\_base/patterns/}. Users can extend the pattern library by adding YAML files following the schema defined in \texttt{src/knowledge/schemas.py}. Test fixtures are available in \texttt{tests/fixtures/} for validation. The complete repository is available at: \href{https://github.com/ritikmahy5/Code-Circular-Dependency-Detection}{Repository Link}
 
 \section{Modeling Methodology}
 
@@ -70,7 +70,6 @@ This section details our algorithms and implementation approach. The system foll
 \textbf{Reproducibility}: The system is fully containerized with Dockerfile, docker-compose.yml, and automated setup scripts (\texttt{start.sh}, \texttt{run.sh}). The \texttt{start.sh} script pulls Ollama Docker image, downloads CodeLlama 13B model automatically, and starts all required services. The complete implementation and README are available at: \href{https://github.com/your-repo/Code-Circular-Dependency-Detection}{Repository Link}
 
 \section{Data and Data Analysis}
-
 \subsection{Data Source(s)}
 
 Our system operates on two types of data:
@@ -166,42 +165,4 @@ The system can be applied in several ways: integration into CI/CD pipelines for 
 
 If we had more time, we would focus on: implementing automated code fixes (currently only provides recommendations), expanding the refactoring pattern library with more strategies, building a web dashboard for interactive cycle exploration, adding support for detecting indirect cycles through multiple import levels, integrating with popular Python frameworks (Django, FastAPI) for framework-specific patterns, and performance optimization for very large codebases (1000+ files). Future directions also include multi-language support (JavaScript, Java, Go), machine learning models to predict cycle severity and optimal refactoring strategies, IDE integration for real-time analysis, and historical analysis to track cycle evolution over time in version control.
 
-\section{Submission Guidelines}
-
-Your in-class delivery comprises 40\% of your project grade and the technical artifacts, demonstration, and real-time capabilities comprise 60\%. More details about the presentation breakdown can be found on the \href{https://course.ccs.neu.edu/cs6120s25/presentation-and-project/}{website}. 
-
-\begin{description}
-    \item[40\% Documentation] Written and oral delivery of project rationale, justification, results, and conclusions. 
-
-    \begin{itemize}
-        \item 10\% Oral Delivery (\href{https://docs.google.com/presentation/d/1THS63CCLEqvzfadkNAwDTP2hCg9bLNnt9LdAo7dUWNc/edit?slide=id.p1#slide=id.p1}{Deck})
-        \item 30\% Written Summary (\href{https://www.overleaf.com/project/67d700c6739786050017acaa}{PDF})
-    \end{itemize}
-
-    \item[60\% Project Writeup PDF]  Demonstration, Code, and Corner Case Handling
-
-    \begin{itemize}
-        \item \textbf{Code and Data Provenance} There are two components that speak to the transparency of your work: verifiability and reproducibility. 
-
-        \begin{itemize}
-            \item \textbf{Verifiability} - Our RAG system provides citations for all LLM outputs through specific file paths and line numbers in explanations (e.g., ``module\_a.py line 2 imports module\_b.py''), retrieved code chunks with source attribution, refactoring patterns with before/after code examples, and verification steps included in every explanation. The LLM is instructed to only reference actual code from the codebase and provided patterns, preventing hallucinations. We flag TYPE\_CHECKING-only cycles as low-confidence to prevent false alarms. Our benchmark results demonstrate 100\% accuracy in cycle detection.
-
-            \item \textbf{Problem Complexity} - The system handles codebases ranging from small test fixtures (7 files) to larger projects (42+ files tested). Test fixtures include simple 2-file cycles, complex multi-file cycles, and edge cases like TYPE\_CHECKING guards. The graph algorithms scale efficiently with O(V+E) complexity.
-
-            \item \textbf{Reproducibility} - Full reproducibility is ensured through Docker containerization with automated setup, complete dependency specification in \texttt{requirements.txt}, automated model download in \texttt{start.sh}, clear README with step-by-step instructions, test fixtures for validation (\texttt{tests/fixtures/}), and benchmark script (\texttt{benchmark.py}) for performance validation. Anyone can reproduce our results by running \texttt{./start.sh} and \texttt{./run.sh analyze <project>} or \texttt{python benchmark.py} for benchmarks.
-        \end{itemize}
-
-        These perspectives are intimately tied with the quality of your project. 
-
-        \item \textbf{Accessibility and Performance} The system is accessible through command-line interface for local use (\texttt{python -m src.cli analyze <project>}), Docker deployment for easy setup, GCP deployment scripts for cloud hosting, and interactive HTML visualizations. Performance: Graph building and cycle detection complete in milliseconds even for large codebases. Our benchmarks show 0.9--1.2ms for graph building and 0.10--0.24ms for cycle detection on test fixtures. LLM explanations take 10--30 seconds depending on hardware (Ollama generation time).
-
-        \item \textbf{Accuracy} Our LLM application addresses corner cases: TYPE\_CHECKING-only cycles (flagged as low severity, no runtime impact) - $\checkmark$ Correctly handled; local imports (function-level imports reduce cycle severity) - $\checkmark$ Correctly identified; relative imports (correctly resolved to absolute paths) - $\checkmark$ Working; package imports (\texttt{\_\_init\_\_.py} handling) - $\checkmark$ Supported; external library filtering (standard library and third-party imports excluded) - $\checkmark$ Implemented; simple 2-file cycles - $\checkmark$ 100\% accuracy; complex multi-file cycles - $\checkmark$ 100\% accuracy.
-    \end{itemize}
-\end{description}
-
-Upload your PDF file, GCP (or other) Endpoint Link, and Github URL to \href{https://www.gradescope.com}{Gradescope} as a \emph{single} submission with all members of the team. On the top of the document, include the teammates and project repository. 
-
 \end{document}
-
-
-

@@ -1,9 +1,68 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+dist/
+build/
+*.egg
+
+# Virtual environments
 venv/
-__pycache__/
-*.pyc
-.git/
-.env
-*.html
-*.json
-output/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Project specific
+*.html
+*.log
+*.md
+!README.md
+test_circular_project/
+tests/
+BUG_REPORT.md
+BUGS_FIXED.md
+CITATIONS_EXPLAINED.md
+CS6120_REQUIREMENTS_VERIFICATION.md
+DOCKER_INSTRUCTIONS.md
+report.tex
+visualization_output.html
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Scripts
+*.sh
+run.sh
+start.sh
+stop.sh
+clear_cache.sh
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Output directories (will be mounted as volumes)
+output/
+project_to_analyze/

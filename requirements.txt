@@ -7,7 +7,12 @@ astunparse>=1.6.3
 
 # RAG and Embeddings
 sentence-transformers>=2.2.0
-faiss-cpu>=1.7.4
+# faiss-gpu will be installed in Dockerfile (with fallback to faiss-cpu)
+# faiss-gpu>=1.7.1
+# PyTorch with CUDA (installed separately in Dockerfile from PyTorch index)
+# torch>=2.0.0
+# torchvision>=0.15.0
+# torchaudio>=2.0.0
 
 # LLM
 anthropic>=0.18.0

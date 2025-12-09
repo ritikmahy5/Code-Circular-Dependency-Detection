@@ -1494,31 +1494,58 @@ with tab5:
         col1, col2 = st.columns([1, 2])
         with col1:
             use_persistent_db = st.checkbox("Load 42k knowledge base", value=False, 
-                help="Loads pre-built Django code chunks. Disable if you get memory errors.")
+                help="⚠️ VERY SLOW on GCP (2-5 minutes)! Loads pre-built Django code chunks. Recommended: Keep UNCHECKED for faster initialization.")
+            
+            if use_persistent_db:
+                st.warning("⚠️ Loading 42k knowledge base will take 2-5 minutes on GCP. The app may appear frozen - please wait!")
         with col2:
             if st.button("🚀 Initialize AI Assistant", type="primary"):
                 try:
-                    with st.spinner("Initializing AI Assistant (should be fast)..."):
-                        # Get existing analysis results to avoid re-analyzing
-                        existing_graph = st.session_state.get('graph_data')
-                        existing_cycles = None
-                        if st.session_state.analysis_results and 'raw_cycles' in st.session_state.analysis_results:
-                            existing_cycles = st.session_state.analysis_results['raw_cycles']
-                        
-                        # Initialize chat with existing analysis
-                        st.session_state.chat_instance = CodebaseChat(
-                            st.session_state.project_path,
-                            use_persistent_db=use_persistent_db,
-                            existing_graph=existing_graph,
-                            existing_cycles=existing_cycles,
-                            max_files_to_chunk=50,  # Only chunk 50 files max for speed
-                        )
-                        st.session_state.chat_init_error = None
-                        st.success("✅ AI Assistant ready!")
-                        st.rerun()
+                    # Show progress for initialization
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    def update_progress(step, total, message):
+                        progress_bar.progress(step / total)
+                        status_text.text(f"Step {step}/{total}: {message}")
+                    
+                    update_progress(1, 4, "Preparing...")
+                    
+                    # Get existing analysis results to avoid re-analyzing
+                    existing_graph = st.session_state.get('graph_data')
+                    existing_cycles = None
+                    if st.session_state.analysis_results and 'raw_cycles' in st.session_state.analysis_results:
+                        existing_cycles = st.session_state.analysis_results['raw_cycles']
+                    
+                    update_progress(2, 4, "Initializing RAG system...")
+                    
+                    # Initialize chat with existing analysis
+                    # Use smaller chunk limit for GCP (faster initialization)
+                    if use_persistent_db:
+                        st.info("⏳ Loading 42k knowledge base - this will take 2-5 minutes on GCP. Please be patient!")
+                    
+                    update_progress(3, 4, "Loading models and chunks (this may take a while on GCP)...")
+                    
+                    # Use smaller limits for GCP performance
+                    st.session_state.chat_instance = CodebaseChat(
+                        st.session_state.project_path,
+                        use_persistent_db=use_persistent_db,
+                        existing_graph=existing_graph,
+                        existing_cycles=existing_cycles,
+                        max_files_to_chunk=20,  # Reduced for GCP speed (was 50)
+                    )
+                    
+                    update_progress(4, 4, "Finalizing...")
+                    
+                    st.session_state.chat_init_error = None
+                    progress_bar.empty()
+                    status_text.empty()
+                    st.success("✅ AI Assistant ready!")
+                    st.rerun()
                 except Exception as e:
                     st.session_state.chat_init_error = str(e)
                     st.error(f"Initialization failed: {e}")
+                    st.warning("💡 Tip: Try unchecking 'Load 42k knowledge base' for faster initialization on GCP")
                     st.code(traceback.format_exc())
     
     if 'chat_history' not in st.session_state:
